@@ -1,0 +1,14 @@
+<div class="kpi @Accent">
+    <div class="kpi-icon">@Icon</div>
+    <div class="kpi-body">
+        <div class="kpi-title">@Title</div>
+        <div class="kpi-value">@Value</div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public string Value { get; set; } = "";
+    [Parameter] public string Accent { get; set; } = "blue";
+    [Parameter] public string Icon { get; set; } = "📊";
+}

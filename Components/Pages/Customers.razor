@@ -1,0 +1,80 @@
+@page "/customers"
+@rendermode InteractiveServer
+@inject CrmService Crm
+
+<PageTitle>Customers</PageTitle>
+
+<div class="page-header">
+    <h1>Customers</h1>
+    <button class="btn btn-primary" @onclick="@(() => Edit(new Customer()))">+ Add Customer</button>
+</div>
+
+<div class="card mb-2">
+    <input placeholder="Search by name, business, phone, email…" @bind="search" @bind:event="oninput" @bind:after="Reload" class="search" />
+</div>
+
+@if (customers == null) { <p>Loading…</p> }
+else if (!customers.Any()) { <p class="muted">No matching customers.</p> }
+else
+{
+    <table class="table">
+        <thead><tr><th>Name</th><th>Business</th><th>Segment</th><th>Phone</th><th>Email</th><th>District</th><th></th></tr></thead>
+        <tbody>
+            @foreach (var c in customers)
+            {
+                <tr>
+                    <td><a href="/customers/@c.Id"><strong>@c.FullName</strong></a></td>
+                    <td>@c.BusinessName</td>
+                    <td><span class="badge">@c.Segment</span></td>
+                    <td>@c.Phone</td>
+                    <td>@c.Email</td>
+                    <td>@c.District</td>
+                    <td>
+                        <button class="btn btn-sm" @onclick="() => Edit(c)">Edit</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (editing != null)
+{
+    <div class="modal-backdrop" @onclick="() => editing = null"></div>
+    <div class="modal">
+        <h3>@(editing.Id == 0 ? "New" : "Edit") Customer</h3>
+        <div class="form-row"><label>Full Name</label><input @bind="editing.FullName" /></div>
+        <div class="form-row"><label>Business</label><input @bind="editing.BusinessName" /></div>
+        <div class="form-row"><label>Phone</label><input @bind="editing.Phone" /></div>
+        <div class="form-row"><label>Email</label><input @bind="editing.Email" /></div>
+        <div class="form-row"><label>District</label><input @bind="editing.District" /></div>
+        <div class="form-row"><label>Address</label><input @bind="editing.Address" /></div>
+        <div class="form-row"><label>Segment</label>
+            <select @bind="editing.Segment">
+                @foreach (var v in Enum.GetValues<CustomerSegment>()) { <option value="@v">@v</option> }
+            </select>
+        </div>
+        <div class="form-row"><label>Notes</label><textarea @bind="editing.Notes" rows="3"></textarea></div>
+        <div class="modal-actions">
+            <button class="btn" @onclick="() => editing = null">Cancel</button>
+            <button class="btn btn-primary" @onclick="Save">Save</button>
+        </div>
+    </div>
+}
+
+@code {
+    List<Customer>? customers;
+    Customer? editing;
+    string? search;
+
+    protected override async Task OnInitializedAsync() => await Reload();
+    async Task Reload() => customers = await Crm.GetCustomersAsync(search);
+
+    void Edit(Customer c) => editing = c;
+    async Task Save()
+    {
+        await Crm.SaveAsync(editing!);
+        editing = null;
+        await Reload();
+    }
+}

@@ -1,0 +1,95 @@
+@page "/"
+@rendermode InteractiveServer
+@inject AnalyticsService Analytics
+@inject CrmService Crm
+
+<PageTitle>Dashboard - Salone Sales</PageTitle>
+
+<div class="dash-header">
+    <div>
+        <h1>Salone Sales Dashboard</h1>
+        <p class="muted">Sales, inventory & CRM overview for your Sierra Leone business.</p>
+    </div>
+    <div class="muted">@DateTime.Now.ToString("dddd, dd MMM yyyy")</div>
+</div>
+
+@if (stats is null)
+{
+    <p>Loading…</p>
+}
+else
+{
+    <div class="kpi-grid">
+        <KpiCard Title="Revenue Today" Value="@Money.Format(stats.RevenueToday)" Accent="green" Icon="💰" />
+        <KpiCard Title="Revenue (Month)" Value="@Money.FormatShort(stats.RevenueMonth)" Accent="blue" Icon="📈" />
+        <KpiCard Title="Orders Today" Value="@stats.OrdersToday.ToString()" Accent="purple" Icon="🧾" />
+        <KpiCard Title="Orders (Month)" Value="@stats.OrdersMonth.ToString()" Accent="indigo" Icon="📦" />
+        <KpiCard Title="Avg Order Value" Value="@Money.Format(stats.AverageOrderValue)" Accent="teal" Icon="🎯" />
+        <KpiCard Title="Customers" Value="@stats.CustomerCount.ToString()" Accent="orange" Icon="👥" />
+        <KpiCard Title="Low-stock Items" Value="@stats.LowStockCount.ToString()" Accent="red" Icon="⚠️" />
+    </div>
+
+    <div class="grid-2">
+        <div class="card">
+            <h3>Daily Revenue (last 14 days)</h3>
+            <BarChart Points="dailyRevenue" Color="#2563eb" />
+        </div>
+        <div class="card">
+            <h3>Top Products</h3>
+            <BarChart Points="topProducts" Color="#16a34a" Horizontal="true" />
+        </div>
+        <div class="card">
+            <h3>Sales by Store</h3>
+            <BarChart Points="salesByStore" Color="#9333ea" />
+        </div>
+        <div class="card">
+            <h3>Payment Method Mix</h3>
+            <BarChart Points="paymentMix" Color="#ea580c" />
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Upcoming Follow-ups</h3>
+        @if (followUps?.Any() == true)
+        {
+            <table class="table">
+                <thead><tr><th>When</th><th>Customer</th><th>Type</th><th>Subject</th><th>Owner</th></tr></thead>
+                <tbody>
+                    @foreach (var f in followUps)
+                    {
+                        <tr>
+                            <td>@f.FollowUpDate?.ToString("dd MMM")</td>
+                            <td>@f.Customer?.FullName</td>
+                            <td>@f.Type</td>
+                            <td>@f.Subject</td>
+                            <td>@f.Owner</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        else
+        {
+            <p class="muted">No follow-ups scheduled.</p>
+        }
+    </div>
+}
+
+@code {
+    DashboardStats? stats;
+    List<SeriesPoint> dailyRevenue = new();
+    List<SeriesPoint> topProducts = new();
+    List<SeriesPoint> salesByStore = new();
+    List<SeriesPoint> paymentMix = new();
+    List<Interaction>? followUps;
+
+    protected override async Task OnInitializedAsync()
+    {
+        stats = await Analytics.GetStatsAsync();
+        dailyRevenue = await Analytics.GetDailyRevenueAsync();
+        topProducts = await Analytics.GetTopProductsAsync();
+        salesByStore = await Analytics.GetSalesByStoreAsync();
+        paymentMix = await Analytics.GetPaymentMixAsync();
+        followUps = await Crm.GetUpcomingFollowUpsAsync();
+    }
+}

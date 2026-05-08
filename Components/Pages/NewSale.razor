@@ -1,0 +1,170 @@
+@page "/sales/new"
+@rendermode InteractiveServer
+@inject SalesService SalesSvc
+@inject InventoryService Inv
+@inject CrmService Crm
+@inject NavigationManager Nav
+
+<PageTitle>New Sale</PageTitle>
+
+<div class="page-header">
+    <h1>New Sale</h1>
+    <a class="btn" href="/sales">← Back</a>
+</div>
+
+@if (products == null || stores == null || customers == null)
+{
+    <p>Loading…</p>
+}
+else
+{
+    <div class="grid-2">
+        <div class="card">
+            <h3>Sale Details</h3>
+            <div class="form-row">
+                <label>Store</label>
+                <select @bind="sale.StoreId">
+                    @foreach (var s in stores) { <option value="@s.Id">@s.Name</option> }
+                </select>
+            </div>
+            <div class="form-row">
+                <label>Customer</label>
+                <select @bind="sale.CustomerId">
+                    <option value="">— Walk-in —</option>
+                    @foreach (var c in customers)
+                    {
+                        <option value="@c.Id">@c.FullName @(string.IsNullOrEmpty(c.BusinessName) ? "" : $"({c.BusinessName})")</option>
+                    }
+                </select>
+            </div>
+            <div class="form-row">
+                <label>Cashier</label>
+                <input @bind="sale.CashierName" placeholder="Cashier name" />
+            </div>
+            <div class="form-row">
+                <label>Payment Method</label>
+                <select @bind="sale.PaymentMethod">
+                    @foreach (var pm in Enum.GetValues<PaymentMethod>()) { <option value="@pm">@pm</option> }
+                </select>
+            </div>
+            <div class="form-row">
+                <label>Notes</label>
+                <textarea @bind="sale.Notes" rows="2"></textarea>
+            </div>
+
+            <h3 class="mt-3">Add Item</h3>
+            <div class="form-row">
+                <label>Product</label>
+                <select @bind="selectedProductId">
+                    <option value="0">— Choose product —</option>
+                    @foreach (var p in products)
+                    {
+                        <option value="@p.Id">@p.Name — @Money.Format(p.UnitPrice)</option>
+                    }
+                </select>
+            </div>
+            <div class="form-row">
+                <label>Quantity</label>
+                <input type="number" min="1" @bind="qty" />
+            </div>
+            <button class="btn btn-primary" @onclick="AddItem">Add Item</button>
+        </div>
+
+        <div class="card">
+            <h3>Cart</h3>
+            @if (!sale.Items.Any())
+            {
+                <p class="muted">No items added.</p>
+            }
+            else
+            {
+                <table class="table">
+                    <thead><tr><th>Product</th><th>Qty</th><th class="text-right">Price</th><th class="text-right">Total</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var line in sale.Items)
+                        {
+                            <tr>
+                                <td>@line.ProductName</td>
+                                <td>@line.Quantity</td>
+                                <td class="text-right">@Money.Format(line.UnitPrice)</td>
+                                <td class="text-right">@Money.Format(line.LineTotal)</td>
+                                <td><button class="btn btn-sm btn-danger" @onclick="() => Remove(line)">×</button></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+
+                <div class="totals">
+                    <div><span>Subtotal</span><strong>@Money.Format(Subtotal)</strong></div>
+                    <div><span>GST (15%)</span><strong>@Money.Format(Tax)</strong></div>
+                    <div><span>Discount</span>
+                        <input type="number" min="0" step="0.01" @bind="sale.Discount" style="width:120px" />
+                    </div>
+                    <div class="total-grand"><span>TOTAL</span><strong>@Money.Format(Total)</strong></div>
+                </div>
+
+                <button class="btn btn-success btn-lg" @onclick="Save" disabled="@saving">
+                    @(saving ? "Saving…" : "Complete Sale")
+                </button>
+                @if (!string.IsNullOrEmpty(error))
+                {
+                    <p class="error">@error</p>
+                }
+            }
+        </div>
+    </div>
+}
+
+@code {
+    Sale sale = new() { SaleDate = DateTime.UtcNow, Status = SaleStatus.Completed };
+    List<Product>? products;
+    List<Store>? stores;
+    List<Customer>? customers;
+    int selectedProductId;
+    int qty = 1;
+    bool saving;
+    string? error;
+
+    decimal Subtotal => sale.Items.Sum(i => i.LineTotal);
+    decimal Tax => Math.Round(Subtotal * 0.15m, 2);
+    decimal Total => Subtotal + Tax - sale.Discount;
+
+    protected override async Task OnInitializedAsync()
+    {
+        products = await Inv.GetProductsAsync();
+        stores = await Inv.GetStoresAsync();
+        customers = await Crm.GetCustomersAsync();
+        if (stores.Any()) sale.StoreId = stores.First().Id;
+    }
+
+    void AddItem()
+    {
+        if (selectedProductId == 0 || qty < 1) return;
+        var p = products!.First(x => x.Id == selectedProductId);
+        sale.Items.Add(new SaleItem
+        {
+            ProductId = p.Id,
+            ProductName = p.Name,
+            Quantity = qty,
+            UnitPrice = p.UnitPrice,
+            LineTotal = qty * p.UnitPrice
+        });
+        selectedProductId = 0;
+        qty = 1;
+    }
+
+    void Remove(SaleItem line) => sale.Items.Remove(line);
+
+    async Task Save()
+    {
+        if (!sale.Items.Any()) { error = "Add at least one item."; return; }
+        saving = true; error = null;
+        try
+        {
+            await SalesSvc.CreateAsync(sale);
+            Nav.NavigateTo("/sales");
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { saving = false; }
+    }
+}

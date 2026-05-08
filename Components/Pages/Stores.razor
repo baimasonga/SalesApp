@@ -1,0 +1,77 @@
+@page "/stores"
+@rendermode InteractiveServer
+@inject InventoryService Inv
+
+<PageTitle>Stores</PageTitle>
+
+<div class="page-header">
+    <h1>Stores</h1>
+    <button class="btn btn-primary" @onclick="@(() => Edit(new Store()))">+ Add Store</button>
+</div>
+
+@if (stores == null) { <p>Loading…</p> }
+else
+{
+    <table class="table">
+        <thead><tr><th>Name</th><th>Location</th><th>District</th><th>Phone</th><th>Manager</th><th>Active</th><th></th></tr></thead>
+        <tbody>
+            @foreach (var s in stores)
+            {
+                <tr>
+                    <td><strong>@s.Name</strong></td>
+                    <td>@s.Location</td>
+                    <td>@s.District</td>
+                    <td>@s.Phone</td>
+                    <td>@s.ManagerName</td>
+                    <td>@(s.IsActive ? "✓" : "—")</td>
+                    <td><button class="btn btn-sm" @onclick="() => Edit(s)">Edit</button></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (editing != null)
+{
+    <div class="modal-backdrop" @onclick="() => editing = null"></div>
+    <div class="modal">
+        <h3>@(editing.Id == 0 ? "New" : "Edit") Store</h3>
+        <div class="form-row"><label>Name</label><input @bind="editing.Name" /></div>
+        <div class="form-row"><label>Location</label><input @bind="editing.Location" /></div>
+        <div class="form-row"><label>District</label>
+            <select @bind="editing.District">
+                @foreach (var d in Districts) { <option value="@d">@d</option> }
+            </select>
+        </div>
+        <div class="form-row"><label>Phone</label><input @bind="editing.Phone" /></div>
+        <div class="form-row"><label>Manager</label><input @bind="editing.ManagerName" /></div>
+        <div class="form-row"><label>Active</label><input type="checkbox" @bind="editing.IsActive" /></div>
+        <div class="modal-actions">
+            <button class="btn" @onclick="() => editing = null">Cancel</button>
+            <button class="btn btn-primary" @onclick="Save">Save</button>
+        </div>
+    </div>
+}
+
+@code {
+    List<Store>? stores;
+    Store? editing;
+
+    static readonly string[] Districts = new[]
+    {
+        "Western Area Urban","Western Area Rural","Bo","Bombali","Bonthe","Falaba",
+        "Kailahun","Kambia","Karene","Kenema","Koinadugu","Kono","Moyamba","Port Loko",
+        "Pujehun","Tonkolili","Makeni"
+    };
+
+    protected override async Task OnInitializedAsync() => stores = await Inv.GetStoresAsync();
+
+    void Edit(Store s) => editing = s;
+
+    async Task Save()
+    {
+        await Inv.SaveStoreAsync(editing!);
+        editing = null;
+        stores = await Inv.GetStoresAsync();
+    }
+}

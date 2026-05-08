@@ -1,0 +1,45 @@
+{
+  "Files": [
+    {
+      "Id": "C:\\Users\\SECAP Training\\Documents\\GitHub\\SalesApp\\obj\\Debug\\net8.0\\scopedcss\\projectbundle\\SalesApp.bundle.scp.css",
+      "PackagePath": "staticwebassets\\SalesApp.bundle.scp.css"
+    },
+    {
+      "Id": "C:\\Users\\SECAP Training\\Documents\\GitHub\\SalesApp\\wwwroot\\app.css",
+      "PackagePath": "staticwebassets\\app.css"
+    },
+    {
+      "Id": "C:\\Users\\SECAP Training\\Documents\\GitHub\\SalesApp\\wwwroot\\bootstrap\\bootstrap.min.css",
+      "PackagePath": "staticwebassets\\bootstrap\\bootstrap.min.css"
+    },
+    {
+      "Id": "C:\\Users\\SECAP Training\\Documents\\GitHub\\SalesApp\\wwwroot\\bootstrap\\bootstrap.min.css.map",
+      "PackagePath": "staticwebassets\\bootstrap\\bootstrap.min.css.map"
+    },
+    {
+      "Id": "C:\\Users\\SECAP Training\\Documents\\GitHub\\SalesApp\\wwwroot\\favicon.png",
+      "PackagePath": "staticwebassets\\favicon.png"
+    },
+    {
+      "Id": "C:\\Users\\SECAP Training\\Documents\\GitHub\\SalesApp\\wwwroot\\salone.css",
+      "PackagePath": "staticwebassets\\salone.css"
+    },
+    {
+      "Id": "obj\\Debug\\net8.0\\staticwebassets\\msbuild.SalesApp.Microsoft.AspNetCore.StaticWebAssets.props",
+      "PackagePath": "build\\Microsoft.AspNetCore.StaticWebAssets.props"
+    },
+    {
+      "Id": "obj\\Debug\\net8.0\\staticwebassets\\msbuild.build.SalesApp.props",
+      "PackagePath": "build\\SalesApp.props"
+    },
+    {
+      "Id": "obj\\Debug\\net8.0\\staticwebassets\\msbuild.buildMultiTargeting.SalesApp.props",
+      "PackagePath": "buildMultiTargeting\\SalesApp.props"
+    },
+    {
+      "Id": "obj\\Debug\\net8.0\\staticwebassets\\msbuild.buildTransitive.SalesApp.props",
+      "PackagePath": "buildTransitive\\SalesApp.props"
+    }
+  ],
+  "ElementsToRemove": []
+}

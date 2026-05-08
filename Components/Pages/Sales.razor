@@ -1,0 +1,64 @@
+@page "/sales"
+@rendermode InteractiveServer
+@inject SalesService SalesSvc
+@inject NavigationManager Nav
+
+<PageTitle>Sales</PageTitle>
+
+<div class="page-header">
+    <h1>Sales</h1>
+    <a class="btn btn-primary" href="/sales/new">+ New Sale</a>
+</div>
+
+@if (sales == null)
+{
+    <p>Loading…</p>
+}
+else if (!sales.Any())
+{
+    <p class="muted">No sales recorded yet.</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Invoice</th><th>Date</th><th>Store</th><th>Customer</th>
+                <th>Items</th><th>Payment</th><th>Status</th><th class="text-right">Total</th><th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var s in sales)
+            {
+                <tr>
+                    <td><strong>@s.InvoiceNumber</strong></td>
+                    <td>@s.SaleDate.ToString("dd MMM yyyy HH:mm")</td>
+                    <td>@s.Store?.Name</td>
+                    <td>@(s.Customer?.FullName ?? "Walk-in")</td>
+                    <td>@s.Items.Count</td>
+                    <td>@s.PaymentMethod</td>
+                    <td><span class="status status-@s.Status.ToString().ToLower()">@s.Status</span></td>
+                    <td class="text-right">@Money.Format(s.Total)</td>
+                    <td>
+                        @if (s.Status == SaleStatus.Completed)
+                        {
+                            <button class="btn btn-sm btn-danger" @onclick="() => Cancel(s.Id)">Cancel</button>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    List<Sale>? sales;
+
+    protected override async Task OnInitializedAsync() => sales = await SalesSvc.GetRecentAsync(100);
+
+    async Task Cancel(int id)
+    {
+        await SalesSvc.CancelAsync(id);
+        sales = await SalesSvc.GetRecentAsync(100);
+    }
+}

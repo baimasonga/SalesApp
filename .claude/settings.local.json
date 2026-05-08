@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dotnet --version)",
+      "Bash(dir \"C:\\\\Users\\\\SECAP Training\\\\Documents\\\\GitHub\\\\SalesApp\")",
+      "Bash(dotnet new *)",
+      "Bash(dotnet add *)",
+      "Bash(dotnet run *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5099/)",
+      "PowerShell(Get-Content \"$env:TEMP\\\\claude\\\\C--Users-SECAP-Training-Documents-GitHub-SalesApp\\\\82e55824-3c9e-40e5-8a65-6262f61f0001\\\\tasks\\\\bbfh0w2vd.output\" | Select -First 50)",
+      "Bash(curl -s -m 5 http://localhost:5099/ -I)",
+      "Bash(curl -s -m 5 http://localhost:5099/)",
+      "PowerShell(Get-Process -Name SalesApp -ErrorAction SilentlyContinue | Stop-Process -Force; Get-Process -Name dotnet -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -match 'SalesApp' -or $_.Path -match 'SalesApp' } | Stop-Process -Force -ErrorAction SilentlyContinue; \"stopped\")",
+      "Bash(dotnet build *)"
+    ]
+  }
+}

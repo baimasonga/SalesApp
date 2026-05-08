@@ -1,0 +1,43 @@
+<div class="top-row ps-3 navbar navbar-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="">🇸🇱 Salone Sales</a>
+    </div>
+</div>
+
+<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+
+<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
+    <nav class="flex-column">
+        <div class="nav-section">Overview</div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">📊 Dashboard</NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="reports">📈 Reports & Analytics</NavLink>
+        </div>
+
+        <div class="nav-section">Sales</div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="sales">🧾 Sales</NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="sales/new">➕ New Sale</NavLink>
+        </div>
+
+        <div class="nav-section">Stores</div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="stores">🏬 Stores</NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="products">📦 Products</NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="inventory">📋 Inventory</NavLink>
+        </div>
+
+        <div class="nav-section">CRM</div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="customers">👥 Customers</NavLink>
+        </div>
+    </nav>
+</div>

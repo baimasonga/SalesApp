@@ -1,0 +1,71 @@
+@page "/inventory"
+@rendermode InteractiveServer
+@inject InventoryService Inv
+
+<PageTitle>Inventory</PageTitle>
+
+<div class="page-header">
+    <h1>Inventory</h1>
+    <div>
+        <select @bind="filterStoreId" @bind:after="Reload">
+            <option value="0">All stores</option>
+            @if (stores != null)
+            {
+                @foreach (var s in stores) { <option value="@s.Id">@s.Name</option> }
+            }
+        </select>
+    </div>
+</div>
+
+@if (items == null) { <p>Loading…</p> }
+else
+{
+    <div class="card mb-2">
+        <strong>Low stock:</strong> @items.Count(i => i.QuantityOnHand <= i.ReorderLevel) item(s) need reorder.
+    </div>
+    <table class="table">
+        <thead><tr><th>Store</th><th>SKU</th><th>Product</th><th class="text-right">On Hand</th><th class="text-right">Reorder</th><th>Status</th><th>Adjust</th></tr></thead>
+        <tbody>
+            @foreach (var i in items)
+            {
+                var low = i.QuantityOnHand <= i.ReorderLevel;
+                <tr class="@(low ? "row-low" : "")">
+                    <td>@i.Store?.Name</td>
+                    <td><code>@i.Product?.Sku</code></td>
+                    <td>@i.Product?.Name</td>
+                    <td class="text-right"><strong>@i.QuantityOnHand</strong></td>
+                    <td class="text-right">@i.ReorderLevel</td>
+                    <td>@(low ? "⚠ Low" : "OK")</td>
+                    <td>
+                        <button class="btn btn-sm" @onclick="() => Adjust(i, -1)">−</button>
+                        <button class="btn btn-sm" @onclick="() => Adjust(i, 1)">+</button>
+                        <button class="btn btn-sm" @onclick="() => Adjust(i, 10)">+10</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    List<InventoryItem>? items;
+    List<Store>? stores;
+    int filterStoreId = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        stores = await Inv.GetStoresAsync();
+        await Reload();
+    }
+
+    async Task Reload()
+    {
+        items = await Inv.GetInventoryAsync(filterStoreId == 0 ? null : filterStoreId);
+    }
+
+    async Task Adjust(InventoryItem i, int delta)
+    {
+        await Inv.AdjustStockAsync(i.StoreId, i.ProductId, delta);
+        await Reload();
+    }
+}

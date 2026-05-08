@@ -1,0 +1,45 @@
+@if (Points is null || Points.Count == 0)
+{
+    <p class="muted">No data.</p>
+}
+else
+{
+    var max = Points.Max(p => p.Value);
+    if (max <= 0) max = 1;
+
+    if (Horizontal)
+    {
+        <div class="hbar-chart">
+            @foreach (var p in Points)
+            {
+                var pct = (double)(p.Value / max) * 100.0;
+                <div class="hbar-row">
+                    <div class="hbar-label" title="@p.Label">@p.Label</div>
+                    <div class="hbar-track">
+                        <div class="hbar-fill" style="width:@(pct.ToString("0.##"))%; background:@Color"></div>
+                    </div>
+                    <div class="hbar-value">@Money.FormatShort(p.Value)</div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="bar-chart">
+            @foreach (var p in Points)
+            {
+                var pct = (double)(p.Value / max) * 100.0;
+                <div class="bar-col" title="@p.Label: @Money.Format(p.Value)">
+                    <div class="bar" style="height:@(pct.ToString("0.##"))%; background:@Color"></div>
+                    <div class="bar-label">@p.Label</div>
+                </div>
+            }
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public List<SeriesPoint>? Points { get; set; }
+    [Parameter] public string Color { get; set; } = "#2563eb";
+    [Parameter] public bool Horizontal { get; set; } = false;
+}
