@@ -11,7 +11,10 @@
       "Bash(curl -s -m 5 http://localhost:5099/ -I)",
       "Bash(curl -s -m 5 http://localhost:5099/)",
       "PowerShell(Get-Process -Name SalesApp -ErrorAction SilentlyContinue | Stop-Process -Force; Get-Process -Name dotnet -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -match 'SalesApp' -or $_.Path -match 'SalesApp' } | Stop-Process -Force -ErrorAction SilentlyContinue; \"stopped\")",
-      "Bash(dotnet build *)"
+      "Bash(dotnet build *)",
+      "PowerShell(Get-Process -Name SalesApp -ErrorAction SilentlyContinue)",
+      "PowerShell(Stop-Process -Force)",
+      "PowerShell(\"stopped\")"
     ]
   }
 }
