@@ -218,12 +218,21 @@ else
         display: flex; flex-direction: column;
         gap: .55rem;
         transition: all var(--transition);
+        min-width: 0;
+        overflow: hidden;
     }
     .quick-card:hover { transform: translateY(-1px); box-shadow: var(--shadow-md); border-color: var(--border-strong); }
     .quick-card.is-warn { border-color: var(--warning-border); background: linear-gradient(180deg, var(--warning-bg) 0%, var(--surface) 60%); }
 
     .quick-row { display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; }
-    .quick-row .kpi-icon { width: 36px; height: 36px; border-radius: var(--radius); }
+    .quick-row > div:first-child { min-width: 0; flex: 1; }
+    .quick-row .kpi-icon { width: 36px; height: 36px; border-radius: var(--radius); flex-shrink: 0; }
+    .quick-row .kpi-value {
+        font-size: 1.4rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
     .quick-link { font-size: .78rem; color: var(--brand); margin-top: auto; }
     .mb-0 { margin-bottom: 0 !important; }
 
