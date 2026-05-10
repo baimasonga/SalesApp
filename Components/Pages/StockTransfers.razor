@@ -43,7 +43,11 @@ else
                             @if (t.Status == StockTransferStatus.Pending)
                             {
                                 <button class="btn btn-sm btn-success" @onclick="() => Complete(t.Id)" title="Complete transfer"><i class="bi bi-check-lg"></i> Complete</button>
-                                <button class="btn btn-sm btn-danger" @onclick="() => Cancel(t.Id)" title="Cancel"><i class="bi bi-x"></i></button>
+                                <button class="btn btn-sm" @onclick="() => Cancel(t.Id)" title="Cancel"><i class="bi bi-x"></i></button>
+                            }
+                            @if (t.Status != StockTransferStatus.Completed)
+                            {
+                                <button class="btn btn-sm btn-danger" @onclick="() => AskDelete(t)" title="Delete"><i class="bi bi-trash"></i></button>
                             }
                         </div>
                     </td>
@@ -114,6 +118,8 @@ else
     List<Product>? products;
     bool showNew, saving;
     string? error;
+    bool confirmDeleteOpen;
+    StockTransfer? deletingT;
     StockTransfer newT = new();
     int selectedPid; int qty = 1;
 
@@ -164,4 +170,22 @@ else
         try { await Trf.CancelAsync(id); Toast.Warning("Transfer cancelled."); transfers = await Trf.GetAllAsync(); }
         catch (Exception ex) { Toast.Error(ex.Message); }
     }
+
+    void AskDelete(StockTransfer t) { deletingT = t; confirmDeleteOpen = true; }
+
+    async Task DoDelete()
+    {
+        if (deletingT == null) return;
+        try { await Trf.DeleteAsync(deletingT.Id); Toast.Success("Transfer deleted."); transfers = await Trf.GetAllAsync(); }
+        catch (InvalidOperationException ex) { Toast.Warning(ex.Message); }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+        finally { deletingT = null; }
+    }
 }
+
+<ConfirmDialog @bind-Open="confirmDeleteOpen"
+               Title="Delete this transfer?"
+               Message="@($"Removing {deletingT?.TransferNumber}. Completed transfers are protected.")"
+               ConfirmText="Delete transfer"
+               Danger="true"
+               OnConfirm="DoDelete" />

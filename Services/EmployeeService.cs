@@ -28,6 +28,42 @@ public class EmployeeService
         await _audit.LogAsync(e.Id == 0 ? "Created" : "Updated", "Employee", e.Id, e.FullName);
     }
 
+    public async Task DeleteEmployeeAsync(int id)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        var e = await db.Employees.FindAsync(id);
+        if (e == null) return;
+        var hasShifts = await db.Shifts.AnyAsync(s => s.EmployeeId == id);
+        if (hasShifts)
+        {
+            e.IsActive = false;
+            await db.SaveChangesAsync();
+            await _audit.LogAsync("Deactivated", "Employee", id, e.FullName);
+            throw new InvalidOperationException("Employee has shift history; deactivated instead of deleting.");
+        }
+        db.Employees.Remove(e);
+        await db.SaveChangesAsync();
+        await _audit.LogAsync("Deleted", "Employee", id, e.FullName);
+    }
+
+    public async Task DeleteShiftAsync(int id)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        var s = await db.Shifts.FindAsync(id);
+        if (s == null) return;
+        db.Shifts.Remove(s);
+        await db.SaveChangesAsync();
+        await _audit.LogAsync("Deleted", "Shift", id);
+    }
+
+    public async Task UpdateShiftAsync(Shift shift)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        db.Shifts.Update(shift);
+        await db.SaveChangesAsync();
+        await _audit.LogAsync("Updated", "Shift", shift.Id);
+    }
+
     public async Task<List<Shift>> GetShiftsAsync(int? employeeId = null)
     {
         await using var db = await _factory.CreateDbContextAsync();

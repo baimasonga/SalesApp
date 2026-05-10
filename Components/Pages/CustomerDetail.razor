@@ -69,17 +69,23 @@ else
         @if (customer.Interactions.Any())
         {
             <table class="table">
-                <thead><tr><th>When</th><th>Type</th><th>Subject</th><th>Details</th><th>Owner</th><th>Follow-up</th></tr></thead>
+                <thead><tr><th>When</th><th>Type</th><th>Subject</th><th>Details</th><th>Owner</th><th>Follow-up</th><th></th></tr></thead>
                 <tbody>
                     @foreach (var i in customer.Interactions.OrderByDescending(i => i.When))
                     {
                         <tr>
                             <td>@i.When.ToString("dd MMM yyyy HH:mm")</td>
-                            <td>@i.Type</td>
+                            <td><span class="badge">@i.Type</span></td>
                             <td>@i.Subject</td>
                             <td>@i.Details</td>
                             <td>@i.Owner</td>
                             <td>@i.FollowUpDate?.ToString("dd MMM")</td>
+                            <td>
+                                <div class="row-actions">
+                                    <button class="btn btn-sm" @onclick="() => EditInteraction(i)" title="Edit"><i class="bi bi-pencil"></i></button>
+                                    <button class="btn btn-sm btn-danger" @onclick="() => AskDeleteInteraction(i)" title="Delete"><i class="bi bi-trash"></i></button>
+                                </div>
+                            </td>
                         </tr>
                     }
                 </tbody>
@@ -112,11 +118,50 @@ else
     </div>
 }
 
+@if (editingInt != null)
+{
+    <div class="slideover-backdrop" @onclick="() => editingInt = null"></div>
+    <aside class="slideover">
+        <div class="slideover-head">
+            <div>
+                <h3>Edit interaction</h3>
+                <p class="muted text-xs mb-0">@editingInt.When.ToString("dd MMM yyyy HH:mm")</p>
+            </div>
+            <button class="btn btn-ghost btn-icon" @onclick="() => editingInt = null"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="slideover-body">
+            <div class="form-row"><label>Type</label>
+                <select @bind="editingInt.Type">
+                    @foreach (var v in Enum.GetValues<InteractionType>()) { <option value="@v">@v</option> }
+                </select>
+            </div>
+            <div class="form-row"><label>Subject</label><input @bind="editingInt.Subject" /></div>
+            <div class="form-row"><label>Details</label><textarea rows="4" @bind="editingInt.Details"></textarea></div>
+            <div class="form-row"><label>Owner</label><input @bind="editingInt.Owner" /></div>
+            <div class="form-row"><label>Follow-up date</label><input type="date" @bind="editingInt.FollowUpDate" /></div>
+        </div>
+        <div class="slideover-foot">
+            <button class="btn" @onclick="() => editingInt = null">Cancel</button>
+            <button class="btn btn-primary" @onclick="SaveInteraction"><i class="bi bi-check-lg"></i> Save</button>
+        </div>
+    </aside>
+}
+
+<ConfirmDialog @bind-Open="confirmDeleteIntOpen"
+               Title="Delete this interaction?"
+               Message="@($"Removing \"{deletingInt?.Subject}\" from {deletingInt?.When:dd MMM yyyy}.")"
+               ConfirmText="Delete"
+               Danger="true"
+               OnConfirm="DoDeleteInteraction" />
+
 @code {
     [Parameter] public int Id { get; set; }
     Customer? customer;
     Interaction newInt = new();
     DateTime? followUp;
+    Interaction? editingInt;
+    Interaction? deletingInt;
+    bool confirmDeleteIntOpen;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -130,6 +175,26 @@ else
         if (string.IsNullOrWhiteSpace(phone)) return "#";
         var digits = new string(phone.Where(char.IsDigit).ToArray());
         return $"https://wa.me/{digits}";
+    }
+
+    void EditInteraction(Interaction i) => editingInt = i;
+
+    async Task SaveInteraction()
+    {
+        if (editingInt == null) return;
+        await Crm.UpdateInteractionAsync(editingInt);
+        editingInt = null;
+        customer = await Crm.GetAsync(Id);
+    }
+
+    void AskDeleteInteraction(Interaction i) { deletingInt = i; confirmDeleteIntOpen = true; }
+
+    async Task DoDeleteInteraction()
+    {
+        if (deletingInt == null) return;
+        await Crm.DeleteInteractionAsync(deletingInt.Id);
+        deletingInt = null;
+        customer = await Crm.GetAsync(Id);
     }
 
     async Task LogInteraction()

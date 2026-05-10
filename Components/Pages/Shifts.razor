@@ -29,15 +29,49 @@ else
                     <td>@(s.ClockOut?.ToString("dd MMM HH:mm") ?? "—")</td>
                     <td>@dur.Hours h @dur.Minutes m</td>
                     <td>
-                        @if (!s.ClockOut.HasValue)
-                        {
-                            <button class="btn btn-sm btn-danger" @onclick="() => ClockOut(s.Id)"><i class="bi bi-box-arrow-right"></i> Clock Out</button>
-                        }
+                        <div class="row-actions">
+                            @if (!s.ClockOut.HasValue)
+                            {
+                                <button class="btn btn-sm btn-success" @onclick="() => ClockOut(s.Id)"><i class="bi bi-box-arrow-right"></i> Clock Out</button>
+                            }
+                            else
+                            {
+                                <button class="btn btn-sm" @onclick="() => Edit(s)" title="Edit"><i class="bi bi-pencil"></i></button>
+                            }
+                            <button class="btn btn-sm btn-danger" @onclick="() => AskDelete(s)" title="Delete"><i class="bi bi-trash"></i></button>
+                        </div>
                     </td>
                 </tr>
             }
         </tbody>
     </table>
+}
+
+@if (editingShift != null)
+{
+    <div class="slideover-backdrop" @onclick="() => editingShift = null"></div>
+    <aside class="slideover">
+        <div class="slideover-head">
+            <div>
+                <h3>Edit shift</h3>
+                <p class="muted text-xs mb-0">@editingShift.Employee?.FullName · @editingShift.Store?.Name</p>
+            </div>
+            <button class="btn btn-ghost btn-icon" @onclick="() => editingShift = null"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="slideover-body">
+            <div class="form-row"><label>Clock-in</label><input type="datetime-local" @bind="editingShift.ClockIn" /></div>
+            <div class="form-row">
+                <label>Clock-out</label>
+                <input type="datetime-local" @bind="clockOutValue" />
+                <span class="help">Leave empty if still on shift.</span>
+            </div>
+            <div class="form-row"><label>Notes</label><textarea rows="3" @bind="editingShift.Notes"></textarea></div>
+        </div>
+        <div class="slideover-foot">
+            <button class="btn" @onclick="() => editingShift = null">Cancel</button>
+            <button class="btn btn-primary" @onclick="SaveShift"><i class="bi bi-check-lg"></i> Save</button>
+        </div>
+    </aside>
 }
 
 @if (showClockIn)
@@ -70,6 +104,10 @@ else
     List<Store>? stores;
     bool showClockIn;
     int empId, storeId;
+    Shift? editingShift;
+    DateTime? clockOutValue;
+    bool confirmDeleteOpen;
+    Shift? deletingShift;
 
     protected override async Task OnInitializedAsync()
     {
@@ -100,4 +138,35 @@ else
         Toast.Success("Clocked out.");
         await Reload();
     }
+
+    void Edit(Shift s)
+    {
+        editingShift = s;
+        clockOutValue = s.ClockOut;
+    }
+
+    async Task SaveShift()
+    {
+        if (editingShift == null) return;
+        editingShift.ClockOut = clockOutValue;
+        try { await Emp.UpdateShiftAsync(editingShift); Toast.Success("Shift updated."); editingShift = null; await Reload(); }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+    }
+
+    void AskDelete(Shift s) { deletingShift = s; confirmDeleteOpen = true; }
+
+    async Task DoDelete()
+    {
+        if (deletingShift == null) return;
+        try { await Emp.DeleteShiftAsync(deletingShift.Id); Toast.Success("Shift deleted."); await Reload(); }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+        finally { deletingShift = null; }
+    }
 }
+
+<ConfirmDialog @bind-Open="confirmDeleteOpen"
+               Title="Delete this shift?"
+               Message="@($"Removing shift for {deletingShift?.Employee?.FullName} on {deletingShift?.ClockIn:dd MMM HH:mm}.")"
+               ConfirmText="Delete shift"
+               Danger="true"
+               OnConfirm="DoDelete" />

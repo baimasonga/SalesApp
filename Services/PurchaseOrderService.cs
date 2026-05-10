@@ -25,6 +25,22 @@ public class PurchaseOrderService
         await db.SaveChangesAsync();
     }
 
+    public async Task DeleteSupplierAsync(int id)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        var s = await db.Suppliers.FindAsync(id);
+        if (s == null) return;
+        var hasPos = await db.PurchaseOrders.AnyAsync(x => x.SupplierId == id);
+        if (hasPos)
+        {
+            s.IsActive = false;
+            await db.SaveChangesAsync();
+            throw new InvalidOperationException("Supplier has purchase-order history; deactivated instead of deleting.");
+        }
+        db.Suppliers.Remove(s);
+        await db.SaveChangesAsync();
+    }
+
     public async Task<List<PurchaseOrder>> GetPosAsync()
     {
         await using var db = await _factory.CreateDbContextAsync();
@@ -77,6 +93,19 @@ public class PurchaseOrderService
         po.ReceivedDate = DateTime.UtcNow;
         await db.SaveChangesAsync();
         await _audit.LogAsync("Received", "PurchaseOrder", po.Id, po.PoNumber);
+    }
+
+    public async Task DeleteAsync(int id)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        var po = await db.PurchaseOrders.Include(p => p.Items).FirstOrDefaultAsync(p => p.Id == id);
+        if (po == null) return;
+        if (po.Status == PurchaseOrderStatus.Received)
+            throw new InvalidOperationException("Received POs cannot be deleted (stock has already been credited).");
+        db.PurchaseOrderItems.RemoveRange(po.Items);
+        db.PurchaseOrders.Remove(po);
+        await db.SaveChangesAsync();
+        await _audit.LogAsync("Deleted", "PurchaseOrder", id, po.PoNumber);
     }
 
     public async Task CancelAsync(int id)

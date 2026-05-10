@@ -93,16 +93,30 @@ else
             </div>
         </div>
         <div class="slideover-foot">
+            @if (editing.Id != 0)
+            {
+                <button class="btn btn-danger" style="margin-right: auto;" @onclick="() => confirmDeleteOpen = true">
+                    <i class="bi bi-trash"></i> Delete
+                </button>
+            }
             <button class="btn" @onclick="() => editing = null">Cancel</button>
             <button class="btn btn-primary" @onclick="Save"><i class="bi bi-check-lg"></i> Save employee</button>
         </div>
     </aside>
 }
 
+<ConfirmDialog @bind-Open="confirmDeleteOpen"
+               Title="Delete this employee?"
+               Message="@($"Removing {editing?.FullName}. Employees with shift history are deactivated instead.")"
+               ConfirmText="Delete employee"
+               Danger="true"
+               OnConfirm="DeleteCurrent" />
+
 @code {
     List<Employee>? employees;
     List<Store>? stores;
     Employee? editing;
+    bool confirmDeleteOpen;
 
     protected override async Task OnInitializedAsync()
     {
@@ -115,9 +129,15 @@ else
     async Task Save()
     {
         if (string.IsNullOrWhiteSpace(editing!.FullName)) { Toast.Warning("Name is required."); return; }
-        await Emp.SaveAsync(editing);
-        Toast.Success("Employee saved.");
-        editing = null;
-        employees = await Emp.GetAllAsync();
+        try { await Emp.SaveAsync(editing); Toast.Success("Employee saved."); editing = null; employees = await Emp.GetAllAsync(); }
+        catch (Exception ex) { Toast.Error($"Save failed: {ex.Message}"); }
+    }
+
+    async Task DeleteCurrent()
+    {
+        if (editing == null || editing.Id == 0) return;
+        try { await Emp.DeleteEmployeeAsync(editing.Id); Toast.Success("Employee deleted."); editing = null; employees = await Emp.GetAllAsync(); }
+        catch (InvalidOperationException ex) { Toast.Warning(ex.Message); editing = null; employees = await Emp.GetAllAsync(); }
+        catch (Exception ex) { Toast.Error($"Delete failed: {ex.Message}"); }
     }
 }

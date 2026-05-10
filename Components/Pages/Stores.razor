@@ -76,15 +76,29 @@ else
             </div>
         </div>
         <div class="slideover-foot">
+            @if (editing.Id != 0)
+            {
+                <button class="btn btn-danger" style="margin-right: auto;" @onclick="() => confirmDeleteOpen = true">
+                    <i class="bi bi-trash"></i> Delete
+                </button>
+            }
             <button class="btn" @onclick="() => editing = null">Cancel</button>
             <button class="btn btn-primary" @onclick="Save"><i class="bi bi-check-lg"></i> Save store</button>
         </div>
     </aside>
 }
 
+<ConfirmDialog @bind-Open="confirmDeleteOpen"
+               Title="Delete this store?"
+               Message="@($"Removing {editing?.Name}. Stores with sales or stock are deactivated instead of hard-deleted.")"
+               ConfirmText="Delete store"
+               Danger="true"
+               OnConfirm="DeleteCurrent" />
+
 @code {
     List<Store>? stores;
     Store? editing;
+    bool confirmDeleteOpen;
 
     static readonly string[] Districts = new[]
     {
@@ -112,5 +126,13 @@ else
             stores = await Inv.GetStoresAsync();
         }
         catch (Exception ex) { Toast.Error($"Save failed: {ex.Message}"); }
+    }
+
+    async Task DeleteCurrent()
+    {
+        if (editing == null || editing.Id == 0) return;
+        try { await Inv.DeleteStoreAsync(editing.Id); Toast.Success("Store deleted."); editing = null; stores = await Inv.GetStoresAsync(); }
+        catch (InvalidOperationException ex) { Toast.Warning(ex.Message); editing = null; stores = await Inv.GetStoresAsync(); }
+        catch (Exception ex) { Toast.Error($"Delete failed: {ex.Message}"); }
     }
 }

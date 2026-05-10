@@ -104,17 +104,31 @@ else
             </div>
         </div>
         <div class="slideover-foot">
+            @if (editing.Id != 0)
+            {
+                <button class="btn btn-danger" style="margin-right: auto;" @onclick="() => confirmDeleteOpen = true">
+                    <i class="bi bi-trash"></i> Delete
+                </button>
+            }
             <button class="btn" @onclick="() => editing = null">Cancel</button>
             <button class="btn btn-primary" @onclick="Save"><i class="bi bi-check-lg"></i> Save product</button>
         </div>
     </aside>
 }
 
+<ConfirmDialog @bind-Open="confirmDeleteOpen"
+               Title="Delete this product?"
+               Message="@($"Removing {editing?.Name}. Products with sales history are deactivated (soft-delete) instead of hard-deleted.")"
+               ConfirmText="Delete product"
+               Danger="true"
+               OnConfirm="DeleteCurrent" />
+
 @code {
     static readonly string[] Categories = { "Foodstuff", "Building", "Electronics", "Telecom", "Household", "Beverage", "Textile", "Other" };
 
     List<Product>? products;
     Product? editing;
+    bool confirmDeleteOpen;
 
     protected override async Task OnInitializedAsync()
     {
@@ -136,6 +150,14 @@ else
             products = await Inv.GetProductsAsync();
         }
         catch (Exception ex) { Toast.Error($"Save failed: {ex.Message}"); }
+    }
+
+    async Task DeleteCurrent()
+    {
+        if (editing == null || editing.Id == 0) return;
+        try { await Inv.DeleteProductAsync(editing.Id); Toast.Success("Product deleted."); editing = null; products = await Inv.GetProductsAsync(); }
+        catch (InvalidOperationException ex) { Toast.Warning(ex.Message); editing = null; products = await Inv.GetProductsAsync(); }
+        catch (Exception ex) { Toast.Error($"Delete failed: {ex.Message}"); }
     }
 
     static string ProductIcon(string? cat) => cat switch

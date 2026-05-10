@@ -53,6 +53,45 @@ public class InventoryService
         await db.SaveChangesAsync();
     }
 
+    public async Task DeleteStoreAsync(int id)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        var s = await db.Stores.FindAsync(id);
+        if (s == null) return;
+        var hasSales = await db.Sales.AnyAsync(x => x.StoreId == id);
+        var hasInv   = await db.InventoryItems.AnyAsync(x => x.StoreId == id && x.QuantityOnHand > 0);
+        if (hasSales || hasInv)
+        {
+            // Soft-delete: deactivate
+            s.IsActive = false;
+            await db.SaveChangesAsync();
+            throw new InvalidOperationException("Store has sales or stock; deactivated instead of deleting.");
+        }
+        // Remove zero-stock inventory rows for this store
+        var emptyInv = db.InventoryItems.Where(x => x.StoreId == id);
+        db.InventoryItems.RemoveRange(emptyInv);
+        db.Stores.Remove(s);
+        await db.SaveChangesAsync();
+    }
+
+    public async Task DeleteProductAsync(int id)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        var p = await db.Products.FindAsync(id);
+        if (p == null) return;
+        var hasSales = await db.SaleItems.AnyAsync(x => x.ProductId == id);
+        if (hasSales)
+        {
+            p.IsActive = false;
+            await db.SaveChangesAsync();
+            throw new InvalidOperationException("Product has sales history; deactivated (soft-delete) instead.");
+        }
+        var inv = db.InventoryItems.Where(x => x.ProductId == id);
+        db.InventoryItems.RemoveRange(inv);
+        db.Products.Remove(p);
+        await db.SaveChangesAsync();
+    }
+
     public async Task AdjustStockAsync(int storeId, int productId, int delta)
     {
         await using var db = await _factory.CreateDbContextAsync();

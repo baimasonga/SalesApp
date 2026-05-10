@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inject PurchaseOrderService Po
 @inject LayoutState Layout
+@inject ToastService Toast
 
 <PageTitle>Suppliers</PageTitle>
 
@@ -69,15 +70,29 @@ else
             </div>
         </div>
         <div class="slideover-foot">
+            @if (editing.Id != 0)
+            {
+                <button class="btn btn-danger" style="margin-right: auto;" @onclick="() => confirmDeleteOpen = true">
+                    <i class="bi bi-trash"></i> Delete
+                </button>
+            }
             <button class="btn" @onclick="() => editing = null">Cancel</button>
             <button class="btn btn-primary" @onclick="Save"><i class="bi bi-check-lg"></i> Save supplier</button>
         </div>
     </aside>
 }
 
+<ConfirmDialog @bind-Open="confirmDeleteOpen"
+               Title="Delete this supplier?"
+               Message="@($"Removing {editing?.Name}. Suppliers with PO history are deactivated instead.")"
+               ConfirmText="Delete supplier"
+               Danger="true"
+               OnConfirm="DeleteCurrent" />
+
 @code {
     List<Supplier>? suppliers;
     Supplier? editing;
+    bool confirmDeleteOpen;
 
     protected override async Task OnInitializedAsync()
     {
@@ -87,9 +102,16 @@ else
     void Edit(Supplier s) => editing = s;
     async Task Save()
     {
-        if (string.IsNullOrWhiteSpace(editing!.Name)) return;
-        await Po.SaveSupplierAsync(editing!);
-        editing = null;
-        suppliers = await Po.GetSuppliersAsync();
+        if (string.IsNullOrWhiteSpace(editing!.Name)) { Toast.Warning("Name is required."); return; }
+        try { await Po.SaveSupplierAsync(editing); Toast.Success("Supplier saved."); editing = null; suppliers = await Po.GetSuppliersAsync(); }
+        catch (Exception ex) { Toast.Error($"Save failed: {ex.Message}"); }
+    }
+
+    async Task DeleteCurrent()
+    {
+        if (editing == null || editing.Id == 0) return;
+        try { await Po.DeleteSupplierAsync(editing.Id); Toast.Success("Supplier deleted."); editing = null; suppliers = await Po.GetSuppliersAsync(); }
+        catch (InvalidOperationException ex) { Toast.Warning(ex.Message); editing = null; suppliers = await Po.GetSuppliersAsync(); }
+        catch (Exception ex) { Toast.Error($"Delete failed: {ex.Message}"); }
     }
 }

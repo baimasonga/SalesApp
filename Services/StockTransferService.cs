@@ -69,6 +69,19 @@ public class StockTransferService
         await _audit.LogAsync("Completed", "StockTransfer", t.Id, t.TransferNumber);
     }
 
+    public async Task DeleteAsync(int id)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        var t = await db.StockTransfers.Include(x => x.Items).FirstOrDefaultAsync(x => x.Id == id);
+        if (t == null) return;
+        if (t.Status == StockTransferStatus.Completed)
+            throw new InvalidOperationException("Completed transfers cannot be deleted (stock movements were applied).");
+        db.StockTransferItems.RemoveRange(t.Items);
+        db.StockTransfers.Remove(t);
+        await db.SaveChangesAsync();
+        await _audit.LogAsync("Deleted", "StockTransfer", id, t.TransferNumber);
+    }
+
     public async Task CancelAsync(int id)
     {
         await using var db = await _factory.CreateDbContextAsync();

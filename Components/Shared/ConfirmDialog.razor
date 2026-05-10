@@ -1,0 +1,78 @@
+@if (Open)
+{
+    <div class="modal-backdrop" @onclick="Cancel"></div>
+    <div class="modal" style="min-width: 420px;">
+        <div class="confirm-head">
+            <div class="confirm-icon @(Danger ? "danger" : "info")">
+                <i class="bi @(Danger ? "bi-exclamation-triangle-fill" : "bi-question-circle-fill")"></i>
+            </div>
+            <div>
+                <h3 style="margin: 0;">@Title</h3>
+            </div>
+        </div>
+        <p class="muted" style="margin: 1rem 0 0;">@Message</p>
+        @if (ChildContent != null)
+        {
+            <div class="mt-3">@ChildContent</div>
+        }
+        <div class="modal-actions">
+            <button class="btn" @onclick="Cancel" disabled="@busy">@CancelText</button>
+            <button class="btn @(Danger ? "btn-danger" : "btn-primary")" @onclick="DoConfirm" disabled="@busy">
+                @if (busy)
+                {
+                    <span><i class="bi bi-arrow-clockwise"></i> @ConfirmingText</span>
+                }
+                else
+                {
+                    <span>@ConfirmText</span>
+                }
+            </button>
+        </div>
+    </div>
+}
+
+<style>
+    .confirm-head { display: flex; align-items: center; gap: .85rem; }
+    .confirm-icon {
+        width: 42px; height: 42px;
+        border-radius: 50%;
+        display: inline-flex; align-items: center; justify-content: center;
+        font-size: 1.2rem; flex-shrink: 0;
+    }
+    .confirm-icon.danger { background: var(--danger-bg); color: var(--danger); }
+    .confirm-icon.info   { background: var(--info-bg);   color: var(--info);   }
+</style>
+
+@code {
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public EventCallback<bool> OpenChanged { get; set; }
+    [Parameter] public string Title { get; set; } = "Are you sure?";
+    [Parameter] public string Message { get; set; } = "";
+    [Parameter] public string ConfirmText { get; set; } = "Confirm";
+    [Parameter] public string ConfirmingText { get; set; } = "Working…";
+    [Parameter] public string CancelText { get; set; } = "Cancel";
+    [Parameter] public bool Danger { get; set; }
+    [Parameter] public EventCallback OnConfirm { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    bool busy;
+
+    async Task Cancel()
+    {
+        if (busy) return;
+        Open = false;
+        await OpenChanged.InvokeAsync(false);
+    }
+
+    async Task DoConfirm()
+    {
+        busy = true;
+        try { await OnConfirm.InvokeAsync(); }
+        finally
+        {
+            busy = false;
+            Open = false;
+            await OpenChanged.InvokeAsync(false);
+        }
+    }
+}

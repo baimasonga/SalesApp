@@ -41,7 +41,11 @@ else
                             @if (p.Status == PurchaseOrderStatus.Draft || p.Status == PurchaseOrderStatus.Submitted)
                             {
                                 <button class="btn btn-sm btn-success" @onclick="() => Receive(p.Id)" title="Receive into stock"><i class="bi bi-box-arrow-in-down"></i> Receive</button>
-                                <button class="btn btn-sm btn-danger" @onclick="() => Cancel(p.Id)" title="Cancel"><i class="bi bi-x"></i></button>
+                                <button class="btn btn-sm" @onclick="() => Cancel(p.Id)" title="Cancel"><i class="bi bi-x"></i></button>
+                            }
+                            @if (p.Status != PurchaseOrderStatus.Received)
+                            {
+                                <button class="btn btn-sm btn-danger" @onclick="() => AskDelete(p)" title="Delete"><i class="bi bi-trash"></i></button>
                             }
                         </div>
                     </td>
@@ -53,6 +57,8 @@ else
 
 @code {
     List<PurchaseOrder>? pos;
+    bool confirmDeleteOpen;
+    PurchaseOrder? deletingPo;
     protected override async Task OnInitializedAsync()
     {
         Layout.Set("Purchase Orders", "Stock orders sent to suppliers");
@@ -68,4 +74,22 @@ else
         try { await Po.CancelAsync(id); Toast.Warning("PO cancelled."); pos = await Po.GetPosAsync(); }
         catch (Exception ex) { Toast.Error(ex.Message); }
     }
+
+    void AskDelete(PurchaseOrder p) { deletingPo = p; confirmDeleteOpen = true; }
+
+    async Task DoDelete()
+    {
+        if (deletingPo == null) return;
+        try { await Po.DeleteAsync(deletingPo.Id); Toast.Success("PO deleted."); pos = await Po.GetPosAsync(); }
+        catch (InvalidOperationException ex) { Toast.Warning(ex.Message); }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+        finally { deletingPo = null; }
+    }
 }
+
+<ConfirmDialog @bind-Open="confirmDeleteOpen"
+               Title="Delete this PO?"
+               Message="@($"Removing {deletingPo?.PoNumber}. Received POs are protected (stock has been credited).")"
+               ConfirmText="Delete PO"
+               Danger="true"
+               OnConfirm="DoDelete" />

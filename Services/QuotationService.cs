@@ -44,6 +44,46 @@ public class QuotationService
         return q.Id;
     }
 
+    public async Task DeleteAsync(int id)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        var q = await db.Quotations.Include(x => x.Items).FirstOrDefaultAsync(x => x.Id == id);
+        if (q == null) return;
+        if (q.Status == QuotationStatus.Converted)
+            throw new InvalidOperationException("Converted quotations cannot be deleted; the linked sale exists.");
+        db.QuotationItems.RemoveRange(q.Items);
+        db.Quotations.Remove(q);
+        await db.SaveChangesAsync();
+        await _audit.LogAsync("Deleted", "Quotation", id, q.QuoteNumber);
+    }
+
+    public async Task UpdateAsync(Quotation q)
+    {
+        if (q.Id == 0) throw new InvalidOperationException("Use CreateAsync for new quotations.");
+        await using var db = await _factory.CreateDbContextAsync();
+        var existing = await db.Quotations.Include(x => x.Items).FirstOrDefaultAsync(x => x.Id == q.Id);
+        if (existing == null) throw new InvalidOperationException("Quotation not found.");
+        if (existing.Status != QuotationStatus.Draft && existing.Status != QuotationStatus.Sent)
+            throw new InvalidOperationException("Only Draft/Sent quotations can be edited.");
+        existing.CustomerId = q.CustomerId;
+        existing.StoreId = q.StoreId;
+        existing.ValidUntil = q.ValidUntil;
+        existing.Notes = q.Notes;
+        existing.Discount = q.Discount;
+        db.QuotationItems.RemoveRange(existing.Items);
+        existing.Items = q.Items.Select(i => new QuotationItem
+        {
+            ProductId = i.ProductId, ProductName = i.ProductName,
+            Quantity = i.Quantity, UnitPrice = i.UnitPrice,
+            LineTotal = i.Quantity * i.UnitPrice
+        }).ToList();
+        existing.Subtotal = existing.Items.Sum(i => i.LineTotal);
+        existing.Tax = Math.Round(existing.Subtotal * 0.15m, 2);
+        existing.Total = existing.Subtotal + existing.Tax - existing.Discount;
+        await db.SaveChangesAsync();
+        await _audit.LogAsync("Updated", "Quotation", q.Id, existing.QuoteNumber);
+    }
+
     public async Task SetStatusAsync(int id, QuotationStatus status)
     {
         await using var db = await _factory.CreateDbContextAsync();

@@ -44,8 +44,15 @@ public class CrmService
     public async Task DeleteAsync(int id)
     {
         await using var db = await _factory.CreateDbContextAsync();
-        var c = await db.Customers.FindAsync(id);
-        if (c != null) { db.Customers.Remove(c); await db.SaveChangesAsync(); }
+        var c = await db.Customers.Include(x => x.Interactions).FirstOrDefaultAsync(x => x.Id == id);
+        if (c == null) return;
+        // Detach customer from sales (becomes walk-in)
+        var sales = db.Sales.Where(s => s.CustomerId == id);
+        foreach (var s in sales) s.CustomerId = null;
+        // Cascade interactions
+        db.Interactions.RemoveRange(c.Interactions);
+        db.Customers.Remove(c);
+        await db.SaveChangesAsync();
     }
 
     public async Task LogInteractionAsync(Interaction interaction)
@@ -53,6 +60,20 @@ public class CrmService
         await using var db = await _factory.CreateDbContextAsync();
         db.Interactions.Add(interaction);
         await db.SaveChangesAsync();
+    }
+
+    public async Task UpdateInteractionAsync(Interaction interaction)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        db.Interactions.Update(interaction);
+        await db.SaveChangesAsync();
+    }
+
+    public async Task DeleteInteractionAsync(int id)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        var i = await db.Interactions.FindAsync(id);
+        if (i != null) { db.Interactions.Remove(i); await db.SaveChangesAsync(); }
     }
 
     public async Task<List<Interaction>> GetUpcomingFollowUpsAsync(int days = 14)
