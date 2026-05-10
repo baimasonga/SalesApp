@@ -1,0 +1,59 @@
+@page "/reorder"
+@rendermode InteractiveServer
+@inject InventoryService Inv
+@inject LayoutState Layout
+
+<PageTitle>Reorder Report</PageTitle>
+
+<div class="page-header">
+    <div class="actions">
+        <a class="btn" href="/export/inventory.csv" target="_blank"><i class="bi bi-download"></i> Inventory CSV</a>
+    </div>
+</div>
+
+@if (low == null) { <p class="muted">Loading…</p> }
+else if (!low.Any())
+{
+    <div class="card empty-state">
+        <i class="bi bi-check-circle"></i>
+        <p>All stock is above reorder levels.</p>
+    </div>
+}
+else
+{
+    <p class="muted">@low.Count item(s) at or below reorder level. Suggested order = (reorder × 2) − on-hand.</p>
+    <table class="table">
+        <thead><tr><th>Store</th><th>SKU</th><th>Product</th><th class="text-right">On Hand</th><th class="text-right">Reorder At</th><th class="text-right">Suggested Order</th><th class="text-right">Est. Cost</th></tr></thead>
+        <tbody>
+            @{ decimal totalCost = 0; }
+            @foreach (var i in low)
+            {
+                var suggested = Math.Max(1, (i.ReorderLevel * 2) - i.QuantityOnHand);
+                var lineCost = suggested * (i.Product?.CostPrice ?? 0);
+                totalCost += lineCost;
+                <tr>
+                    <td>@i.Store?.Name</td>
+                    <td><code>@i.Product?.Sku</code></td>
+                    <td>@i.Product?.Name</td>
+                    <td class="text-right" style="color:#dc2626"><strong>@i.QuantityOnHand</strong></td>
+                    <td class="text-right">@i.ReorderLevel</td>
+                    <td class="text-right"><strong>@suggested</strong></td>
+                    <td class="text-right">@Money.Format(lineCost)</td>
+                </tr>
+            }
+        </tbody>
+        <tfoot>
+            <tr><td colspan="6" class="text-right"><strong>Total estimated cost:</strong></td>
+                <td class="text-right"><strong>@Money.Format(totalCost)</strong></td></tr>
+        </tfoot>
+    </table>
+}
+
+@code {
+    List<InventoryItem>? low;
+    protected override async Task OnInitializedAsync()
+    {
+        Layout.Set("Reorder Report", "Items at or below reorder level");
+        low = await Inv.GetLowStockAsync();
+    }
+}

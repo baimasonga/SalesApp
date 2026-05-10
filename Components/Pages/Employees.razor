@@ -1,0 +1,123 @@
+@page "/employees"
+@rendermode InteractiveServer
+@inject EmployeeService Emp
+@inject InventoryService Inv
+@inject LayoutState Layout
+@inject ToastService Toast
+
+<PageTitle>Employees</PageTitle>
+
+<div class="page-header">
+    <div class="actions">
+        <a class="btn" href="/shifts"><i class="bi bi-clock-history"></i> Shifts</a>
+        <a class="btn" href="/commissions"><i class="bi bi-cash-coin"></i> Commissions</a>
+        <button class="btn btn-primary" @onclick="@(() => Edit(new Employee()))"><i class="bi bi-plus-lg"></i> Add Employee</button>
+    </div>
+</div>
+
+@if (employees == null) { <Skeleton Height="200" /> }
+else if (!employees.Any())
+{
+    <EmptyState Icon="bi-person-badge" Title="No employees yet" Description="Add your team to track shifts, attribute sales, and pay out commissions.">
+        <Actions>
+            <button class="btn btn-primary" @onclick="@(() => Edit(new Employee()))"><i class="bi bi-plus-lg"></i> Add employee</button>
+        </Actions>
+    </EmptyState>
+}
+else
+{
+    <table class="table">
+        <thead><tr><th>Name</th><th>Role</th><th>Store</th><th>Phone</th><th class="text-right">Salary</th><th class="text-right">Commission</th><th>Active</th><th></th></tr></thead>
+        <tbody>
+            @foreach (var e in employees)
+            {
+                <tr>
+                    <td><strong>@e.FullName</strong></td>
+                    <td><span class="badge">@e.Role</span></td>
+                    <td>@e.Store?.Name</td>
+                    <td>@e.Phone</td>
+                    <td class="text-right">@Money.Format(e.MonthlySalary)</td>
+                    <td class="text-right">@(e.CommissionRate * 100)%</td>
+                    <td>@(e.IsActive ? "✓" : "—")</td>
+                    <td><button class="btn btn-sm" @onclick="() => Edit(e)"><i class="bi bi-pencil"></i></button></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (editing != null)
+{
+    <div class="slideover-backdrop" @onclick="() => editing = null"></div>
+    <aside class="slideover">
+        <div class="slideover-head">
+            <div>
+                <h3>@(editing.Id == 0 ? "New" : "Edit") employee</h3>
+                <p class="muted text-xs mb-0">Profile, role, and compensation.</p>
+            </div>
+            <button class="btn btn-ghost btn-icon" @onclick="() => editing = null"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="slideover-body">
+            <div class="form-section">
+                <div class="form-section-title">Profile</div>
+                <div class="form-row"><label>Full name *</label><input @bind="editing.FullName" /></div>
+                <div class="form-row"><label>Role</label>
+                    <select @bind="editing.Role">
+                        <option>Cashier</option><option>Manager</option><option>Stock Clerk</option>
+                        <option>Driver</option><option>Admin</option>
+                    </select>
+                </div>
+                <div class="form-row"><label>Store</label>
+                    <select @bind="editing.StoreId">
+                        <option value="">— None —</option>
+                        @if (stores != null) { @foreach (var s in stores) { <option value="@s.Id">@s.Name</option> } }
+                    </select>
+                </div>
+            </div>
+            <div class="form-section">
+                <div class="form-section-title">Contact</div>
+                <div class="form-row"><label>Phone</label><input @bind="editing.Phone" placeholder="+232 …" /></div>
+                <div class="form-row"><label>Email</label><input @bind="editing.Email" /></div>
+            </div>
+            <div class="form-section">
+                <div class="form-section-title">Compensation</div>
+                <div class="form-row"><label>Monthly salary (NLe)</label><input type="number" step="0.01" @bind="editing.MonthlySalary" /></div>
+                <div class="form-row">
+                    <label>Commission rate</label>
+                    <input type="number" step="0.001" @bind="editing.CommissionRate" />
+                    <span class="help">As decimal — 0.02 means 2% of attributed sales.</span>
+                </div>
+            </div>
+            <div class="form-section">
+                <div class="form-row"><label class="flex items-center gap-2"><input type="checkbox" @bind="editing.IsActive" /> Active</label></div>
+            </div>
+        </div>
+        <div class="slideover-foot">
+            <button class="btn" @onclick="() => editing = null">Cancel</button>
+            <button class="btn btn-primary" @onclick="Save"><i class="bi bi-check-lg"></i> Save employee</button>
+        </div>
+    </aside>
+}
+
+@code {
+    List<Employee>? employees;
+    List<Store>? stores;
+    Employee? editing;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Layout.Set("Employees", "Staff & commission rates");
+        stores = await Inv.GetStoresAsync();
+        employees = await Emp.GetAllAsync();
+    }
+
+    void Edit(Employee e) => editing = e;
+    async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(editing!.FullName)) { Toast.Warning("Name is required."); return; }
+        await Emp.SaveAsync(editing);
+        Toast.Success("Employee saved.");
+        editing = null;
+        employees = await Emp.GetAllAsync();
+    }
+}

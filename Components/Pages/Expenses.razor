@@ -1,0 +1,145 @@
+@page "/expenses"
+@rendermode InteractiveServer
+@inject ExpenseService Ex
+@inject InventoryService Inv
+@inject CurrentUserService User
+@inject LayoutState Layout
+@inject ToastService Toast
+
+<PageTitle>Expenses</PageTitle>
+
+<div class="page-header">
+    <div class="actions">
+        <button class="btn btn-primary" @onclick="@(() => Edit(new Expense { Date = DateTime.UtcNow, RecordedBy = User.UserName }))">
+            <i class="bi bi-plus-lg"></i> Record Expense
+        </button>
+    </div>
+</div>
+
+<div class="filter-bar">
+    <label>From<input type="date" @bind="from" @bind:after="Reload" /></label>
+    <label>To<input type="date" @bind="to" @bind:after="Reload" /></label>
+</div>
+
+@if (expenses == null) { <p class="muted">Loading…</p> }
+else
+{
+    <div class="kpi-grid">
+        <KpiCard Title="Total Expenses" Value="@Money.Format(expenses.Sum(e => e.Amount))" Accent="red" Icon="bi-cash-stack" />
+        <KpiCard Title="Entries" Value="@expenses.Count.ToString()" Accent="indigo" Icon="bi-journal-text" />
+        <KpiCard Title="Categories" Value="@expenses.Select(e => e.Category).Distinct().Count().ToString()" Accent="orange" Icon="bi-tags" />
+    </div>
+
+    @if (!expenses.Any())
+    {
+        <div class="card empty-state"><i class="bi bi-cash-stack"></i><p>No expenses recorded.</p></div>
+    }
+    else
+    {
+        <table class="table">
+            <thead><tr><th>Date</th><th>Description</th><th>Category</th><th>Store</th><th>Paid To</th><th>By</th><th class="text-right">Amount</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var e in expenses)
+                {
+                    <tr>
+                        <td>@e.Date.ToString("dd MMM yyyy")</td>
+                        <td><strong>@e.Description</strong>@if (!string.IsNullOrEmpty(e.Reference)) { <small class="muted"> · @e.Reference</small> }</td>
+                        <td><span class="badge">@e.Category</span></td>
+                        <td>@(e.Store?.Name ?? "—")</td>
+                        <td>@e.PaidTo</td>
+                        <td>@e.RecordedBy</td>
+                        <td class="text-right"><strong>@Money.Format(e.Amount)</strong></td>
+                        <td>
+                            <div class="btn-row">
+                                <button class="btn btn-sm" @onclick="() => Edit(e)" title="Edit"><i class="bi bi-pencil"></i></button>
+                                <button class="btn btn-sm btn-danger" @onclick="() => Delete(e.Id)" title="Delete"><i class="bi bi-trash"></i></button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+            <tfoot>
+                <tr><td colspan="6" class="text-right">Total</td><td class="text-right">@Money.Format(expenses.Sum(e => e.Amount))</td><td></td></tr>
+            </tfoot>
+        </table>
+    }
+}
+
+@if (editing != null)
+{
+    <div class="slideover-backdrop" @onclick="() => editing = null"></div>
+    <aside class="slideover">
+        <div class="slideover-head">
+            <div>
+                <h3>@(editing.Id == 0 ? "Record" : "Edit") expense</h3>
+                <p class="muted text-xs mb-0">Track operating costs for accurate P&L.</p>
+            </div>
+            <button class="btn btn-ghost btn-icon" @onclick="() => editing = null"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="slideover-body">
+            <div class="form-section">
+                <div class="form-section-title">Details</div>
+                <div class="form-row"><label>Date</label><input type="date" @bind="editing.Date" /></div>
+                <div class="form-row"><label>Description *</label><input @bind="editing.Description" /></div>
+                <div class="form-row"><label>Category</label>
+                    <select @bind="editing.Category">
+                        @foreach (var c in Categories) { <option>@c</option> }
+                    </select>
+                </div>
+                <div class="form-row"><label>Store</label>
+                    <select @bind="editing.StoreId">
+                        <option value="">— None (overhead) —</option>
+                        @if (stores != null) { @foreach (var s in stores) { <option value="@s.Id">@s.Name</option> } }
+                    </select>
+                </div>
+            </div>
+            <div class="form-section">
+                <div class="form-section-title">Amount</div>
+                <div class="form-row"><label>Amount (NLe) *</label><input type="number" step="0.01" @bind="editing.Amount" /></div>
+                <div class="form-row"><label>Paid to</label><input @bind="editing.PaidTo" placeholder="Vendor / payee" /></div>
+                <div class="form-row"><label>Reference</label><input @bind="editing.Reference" placeholder="Receipt / invoice number" /></div>
+            </div>
+        </div>
+        <div class="slideover-foot">
+            <button class="btn" @onclick="() => editing = null">Cancel</button>
+            <button class="btn btn-primary" @onclick="Save"><i class="bi bi-check-lg"></i> Save expense</button>
+        </div>
+    </aside>
+}
+
+@code {
+    static readonly string[] Categories = { "Rent", "Utilities", "Wages", "Transport", "Stock", "Marketing", "Maintenance", "Bank Charges", "Other" };
+
+    List<Expense>? expenses;
+    List<Store>? stores;
+    Expense? editing;
+    DateTime? from = DateTime.UtcNow.AddDays(-30);
+    DateTime? to = DateTime.UtcNow;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Layout.Set("Expenses", "Track operating costs for accurate P&L");
+        stores = await Inv.GetStoresAsync();
+        await Reload();
+    }
+
+    async Task Reload() => expenses = await Ex.GetAllAsync(from, to);
+    void Edit(Expense e) => editing = e;
+
+    async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(editing!.Description) || editing.Amount <= 0)
+        { Toast.Warning("Description and amount are required."); return; }
+        await Ex.SaveAsync(editing!);
+        Toast.Success("Expense saved.");
+        editing = null;
+        await Reload();
+    }
+
+    async Task Delete(int id)
+    {
+        await Ex.DeleteAsync(id);
+        Toast.Success("Expense deleted.");
+        await Reload();
+    }
+}

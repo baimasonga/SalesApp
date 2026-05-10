@@ -1,0 +1,126 @@
+@inject NavigationManager Nav
+
+@if (Open)
+{
+    <div class="cmdk-backdrop" @onclick="Close"></div>
+    <div class="cmdk" @onkeydown="HandleKey" tabindex="-1" @ref="rootRef">
+        <div class="cmdk-input-wrap">
+            <i class="bi bi-search"></i>
+            <input class="cmdk-input" placeholder="Search pages, customers, products…"
+                   @ref="inputRef"
+                   @bind="query" @bind:event="oninput"
+                   autofocus />
+            <kbd>esc</kbd>
+        </div>
+        <div class="cmdk-list">
+            @if (!Filtered.Any())
+            {
+                <div style="padding:1.5rem; text-align:center; color: var(--text-muted); font-size:.85rem;">
+                    No matches for "<strong>@query</strong>"
+                </div>
+            }
+            else
+            {
+                string? lastSection = null;
+                int idx = 0;
+                @foreach (var item in Filtered)
+                {
+                    if (item.Section != lastSection)
+                    {
+                        lastSection = item.Section;
+                        <div class="cmdk-section">@item.Section</div>
+                    }
+                    var i = idx;
+                    <a class="cmdk-item @(i == active ? "is-active" : "")"
+                       href="@item.Href"
+                       @onclick="@(() => Go(item.Href))"
+                       @onclick:preventDefault="true">
+                        <i class="bi @item.Icon"></i>
+                        <span>@item.Label</span>
+                        <span class="cmdk-item-meta">@item.Meta</span>
+                    </a>
+                    idx++;
+                }
+            }
+        </div>
+        <div class="cmdk-foot">
+            <span><kbd>↑</kbd><kbd>↓</kbd> Navigate</span>
+            <span><kbd>↵</kbd> Open</span>
+            <span><kbd>esc</kbd> Close</span>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public EventCallback<bool> OpenChanged { get; set; }
+
+    record Item(string Label, string Href, string Icon, string Section, string Meta = "");
+
+    static readonly Item[] All = new[]
+    {
+        new Item("Dashboard",         "/",                "bi-grid-1x2-fill",      "Overview", "G then D"),
+        new Item("Reports & Analytics","/reports",        "bi-graph-up-arrow",     "Overview"),
+        new Item("Sales Targets",     "/targets",         "bi-bullseye",           "Overview"),
+        new Item("All Sales",         "/sales",           "bi-receipt",            "Sales"),
+        new Item("New Sale",          "/sales/new",       "bi-plus-circle",        "Sales", "N"),
+        new Item("Quotations",        "/quotations",      "bi-file-earmark-text",  "Sales"),
+        new Item("Layaways",          "/layaways",        "bi-piggy-bank",         "Sales"),
+        new Item("Products",          "/products",        "bi-tag",                "Inventory"),
+        new Item("Stock Levels",      "/inventory",       "bi-box-seam",           "Inventory"),
+        new Item("Reorder Report",    "/reorder",         "bi-exclamation-triangle","Inventory"),
+        new Item("Stock Take",        "/stock-take",      "bi-list-check",         "Inventory"),
+        new Item("Stock Transfers",   "/transfers",       "bi-arrow-left-right",   "Inventory"),
+        new Item("Suppliers",         "/suppliers",       "bi-building",           "Procurement"),
+        new Item("Purchase Orders",   "/purchase-orders", "bi-cart3",              "Procurement"),
+        new Item("Customers",         "/customers",       "bi-people",             "CRM"),
+        new Item("Expenses",          "/expenses",        "bi-cash-stack",         "Finance & HR"),
+        new Item("Employees",         "/employees",       "bi-person-badge",       "Finance & HR"),
+        new Item("Shifts",            "/shifts",          "bi-clock-history",      "Finance & HR"),
+        new Item("Commissions",       "/commissions",     "bi-cash-coin",          "Finance & HR"),
+        new Item("Stores",            "/stores",          "bi-shop",               "Admin"),
+        new Item("Audit Log",         "/audit",           "bi-shield-check",       "Admin"),
+        new Item("Sign in / Switch user", "/login",       "bi-person-circle",      "Admin"),
+    };
+
+    string query = "";
+    int active = 0;
+    ElementReference inputRef;
+    ElementReference rootRef;
+
+    IEnumerable<Item> Filtered =>
+        string.IsNullOrWhiteSpace(query)
+            ? All
+            : All.Where(i => i.Label.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                             i.Section.Contains(query, StringComparison.OrdinalIgnoreCase));
+
+    protected override void OnParametersSet()
+    {
+        if (Open) { active = 0; query = ""; }
+    }
+
+    async Task Close()
+    {
+        Open = false;
+        await OpenChanged.InvokeAsync(false);
+    }
+
+    async Task Go(string href)
+    {
+        await Close();
+        Nav.NavigateTo(href);
+    }
+
+    void HandleKey(KeyboardEventArgs e)
+    {
+        var list = Filtered.ToList();
+        if (e.Key == "Escape") { _ = Close(); return; }
+        if (e.Key == "ArrowDown") { active = Math.Min(active + 1, list.Count - 1); return; }
+        if (e.Key == "ArrowUp") { active = Math.Max(active - 1, 0); return; }
+        if (e.Key == "Enter" && list.Count > 0)
+        {
+            var item = list[Math.Clamp(active, 0, list.Count - 1)];
+            _ = Go(item.Href);
+        }
+    }
+}

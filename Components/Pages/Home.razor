@@ -2,78 +2,261 @@
 @rendermode InteractiveServer
 @inject AnalyticsService Analytics
 @inject CrmService Crm
+@inject InventoryService Inv
+@inject TargetService Tg
+@inject LayoutState Layout
+@inject CurrentUserService User
 
-<PageTitle>Dashboard - Salone Sales</PageTitle>
-
-<div class="dash-header">
-    <div>
-        <h1>Salone Sales Dashboard</h1>
-        <p class="muted">Sales, inventory & CRM overview for your Sierra Leone business.</p>
-    </div>
-    <div class="muted">@DateTime.Now.ToString("dddd, dd MMM yyyy")</div>
-</div>
+<PageTitle>Dashboard · Salone Sales</PageTitle>
 
 @if (stats is null)
 {
-    <p>Loading…</p>
+    <div class="dash-skel">
+        <div class="skel" style="height: 96px; border-radius: var(--radius-xl); margin-bottom: 1rem;"></div>
+        <div class="kpi-grid">
+            @for (int i = 0; i < 4; i++)
+            {
+                <div class="card" style="padding: 1.1rem 1.2rem;">
+                    <Skeleton Height="14" Width="80px" StyleExtra="margin-bottom: 8px;" />
+                    <Skeleton Height="28" Width="120px" StyleExtra="margin-bottom: 12px;" />
+                    <Skeleton Height="36" Width="100%" />
+                </div>
+            }
+        </div>
+    </div>
 }
 else
 {
-    <div class="kpi-grid">
-        <KpiCard Title="Revenue Today" Value="@Money.Format(stats.RevenueToday)" Accent="green" Icon="💰" />
-        <KpiCard Title="Revenue (Month)" Value="@Money.FormatShort(stats.RevenueMonth)" Accent="blue" Icon="📈" />
-        <KpiCard Title="Orders Today" Value="@stats.OrdersToday.ToString()" Accent="purple" Icon="🧾" />
-        <KpiCard Title="Orders (Month)" Value="@stats.OrdersMonth.ToString()" Accent="indigo" Icon="📦" />
-        <KpiCard Title="Avg Order Value" Value="@Money.Format(stats.AverageOrderValue)" Accent="teal" Icon="🎯" />
-        <KpiCard Title="Customers" Value="@stats.CustomerCount.ToString()" Accent="orange" Icon="👥" />
-        <KpiCard Title="Low-stock Items" Value="@stats.LowStockCount.ToString()" Accent="red" Icon="⚠️" />
+    <!-- Hero + quick stats row -->
+    <div class="dash-top">
+        <div class="hero-stat">
+            <div class="label">Revenue this month</div>
+            <div class="value">@Money.FormatShort(stats.RevenueMonth)</div>
+            <div class="sub">
+                <strong>@Money.Format(stats.RevenueToday)</strong> earned today across @stats.OrdersToday order@(stats.OrdersToday == 1 ? "" : "s")
+            </div>
+            @if (companyTarget is not null)
+            {
+                var pct = companyTarget.Target == 0 ? 0 : Math.Round(companyTarget.Actual / companyTarget.Target * 100m, 1);
+                <div class="hero-progress">
+                    <div class="hero-progress-track">
+                        <div class="hero-progress-fill" style="width: @(Math.Min(100, pct))%"></div>
+                    </div>
+                    <div class="hero-progress-meta">
+                        <span><strong>@pct%</strong> of @Money.FormatShort(companyTarget.Target) monthly target</span>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="dash-quick">
+            <div class="quick-card">
+                <div class="quick-row">
+                    <div>
+                        <div class="kpi-title">Avg Order Value</div>
+                        <div class="kpi-value">@Money.Format(stats.AverageOrderValue)</div>
+                    </div>
+                    <div class="kpi-icon" style="background: var(--info-bg); color: var(--info);">
+                        <i class="bi bi-bullseye"></i>
+                    </div>
+                </div>
+                <Sparkline Points="dailyRevenue" Color="#0ea5e9" />
+            </div>
+            <div class="quick-card">
+                <div class="quick-row">
+                    <div>
+                        <div class="kpi-title">Customers</div>
+                        <div class="kpi-value">@stats.CustomerCount</div>
+                    </div>
+                    <div class="kpi-icon" style="background: var(--violet-bg); color: var(--violet);">
+                        <i class="bi bi-people-fill"></i>
+                    </div>
+                </div>
+                <p class="muted text-xs mb-1">Active in directory</p>
+            </div>
+            <div class="quick-card @(stats.LowStockCount > 0 ? "is-warn" : "")">
+                <div class="quick-row">
+                    <div>
+                        <div class="kpi-title">Low stock</div>
+                        <div class="kpi-value">@stats.LowStockCount</div>
+                    </div>
+                    <div class="kpi-icon" style="background: var(--danger-bg); color: var(--danger);">
+                        <i class="bi bi-exclamation-triangle"></i>
+                    </div>
+                </div>
+                <a href="/reorder" class="quick-link">Reorder report <i class="bi bi-arrow-right"></i></a>
+            </div>
+        </div>
     </div>
 
+    <!-- Charts row -->
+    <div class="grid-2">
+        <div class="card card-elevated">
+            <div class="card-head">
+                <div>
+                    <h3>Daily Revenue</h3>
+                    <p class="muted text-xs mb-0">Last 14 days</p>
+                </div>
+                <a href="/reports" class="btn btn-ghost btn-sm">View report <i class="bi bi-arrow-right"></i></a>
+            </div>
+            <ChartJs Points="dailyRevenue" Type="line" Color="#4f46e5" Height="260" />
+        </div>
+        <div class="card card-elevated">
+            <div class="card-head">
+                <div>
+                    <h3>Top Products</h3>
+                    <p class="muted text-xs mb-0">By revenue</p>
+                </div>
+            </div>
+            <ChartJs Points="topProducts" Type="bar" Color="#10b981" Height="260" />
+        </div>
+        <div class="card card-elevated">
+            <div class="card-head">
+                <div>
+                    <h3>Sales by Store</h3>
+                    <p class="muted text-xs mb-0">All time</p>
+                </div>
+            </div>
+            <ChartJs Points="salesByStore" Type="bar" Color="#8b5cf6" Height="240" />
+        </div>
+        <div class="card card-elevated">
+            <div class="card-head">
+                <div>
+                    <h3>Payment Mix</h3>
+                    <p class="muted text-xs mb-0">How customers pay</p>
+                </div>
+            </div>
+            <ChartJs Points="paymentMix" Type="doughnut" Color="#f59e0b" Height="240" />
+        </div>
+    </div>
+
+    <!-- Lists row -->
     <div class="grid-2">
         <div class="card">
-            <h3>Daily Revenue (last 14 days)</h3>
-            <BarChart Points="dailyRevenue" Color="#2563eb" />
-        </div>
-        <div class="card">
-            <h3>Top Products</h3>
-            <BarChart Points="topProducts" Color="#16a34a" Horizontal="true" />
-        </div>
-        <div class="card">
-            <h3>Sales by Store</h3>
-            <BarChart Points="salesByStore" Color="#9333ea" />
-        </div>
-        <div class="card">
-            <h3>Payment Method Mix</h3>
-            <BarChart Points="paymentMix" Color="#ea580c" />
-        </div>
-    </div>
-
-    <div class="card">
-        <h3>Upcoming Follow-ups</h3>
-        @if (followUps?.Any() == true)
-        {
-            <table class="table">
-                <thead><tr><th>When</th><th>Customer</th><th>Type</th><th>Subject</th><th>Owner</th></tr></thead>
-                <tbody>
-                    @foreach (var f in followUps)
+            <div class="card-head">
+                <div>
+                    <h3>Upcoming follow-ups</h3>
+                    <p class="muted text-xs mb-0">Next 14 days</p>
+                </div>
+                <a href="/customers" class="btn btn-ghost btn-sm">All customers <i class="bi bi-arrow-right"></i></a>
+            </div>
+            @if (followUps?.Any() == true)
+            {
+                <div class="list-rows">
+                    @foreach (var f in followUps.Take(6))
                     {
-                        <tr>
-                            <td>@f.FollowUpDate?.ToString("dd MMM")</td>
-                            <td>@f.Customer?.FullName</td>
-                            <td>@f.Type</td>
-                            <td>@f.Subject</td>
-                            <td>@f.Owner</td>
-                        </tr>
+                        <div class="list-row">
+                            <Avatar Name="@(f.Customer?.FullName ?? "?")" Size="sm" />
+                            <div class="list-row-body">
+                                <strong>@f.Subject</strong>
+                                <span class="muted text-xs">@f.Customer?.FullName · @f.Type</span>
+                            </div>
+                            <span class="badge">@f.FollowUpDate?.ToString("dd MMM")</span>
+                        </div>
                     }
-                </tbody>
-            </table>
-        }
-        else
-        {
-            <p class="muted">No follow-ups scheduled.</p>
-        }
+                </div>
+            }
+            else
+            {
+                <EmptyState Icon="bi-calendar-check" Title="No follow-ups scheduled" Description="When you log a customer interaction with a follow-up date, it will appear here." />
+            }
+        </div>
+
+        <div class="card">
+            <div class="card-head">
+                <div>
+                    <h3>Stock alerts</h3>
+                    <p class="muted text-xs mb-0">Items at or below reorder level</p>
+                </div>
+                <a href="/reorder" class="btn btn-ghost btn-sm">Reorder <i class="bi bi-arrow-right"></i></a>
+            </div>
+            @if (lowStock?.Any() == true)
+            {
+                <div class="list-rows">
+                    @foreach (var i in lowStock.Take(6))
+                    {
+                        <div class="list-row">
+                            <div class="kpi-icon" style="width: 32px; height: 32px; background: var(--warning-bg); color: var(--warning);">
+                                <i class="bi bi-box"></i>
+                            </div>
+                            <div class="list-row-body">
+                                <strong>@i.Product?.Name</strong>
+                                <span class="muted text-xs">@i.Store?.Name</span>
+                            </div>
+                            <div class="list-row-trail">
+                                <span class="status status-cancelled">@i.QuantityOnHand left</span>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <EmptyState Icon="bi-check-circle" Title="All stocked up" Description="Every product is above its reorder threshold." />
+            }
+        </div>
     </div>
 }
+
+<style>
+    .dash-top {
+        display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;
+    }
+    @@media (max-width: 1100px) { .dash-top { grid-template-columns: 1fr; } }
+
+    .dash-quick {
+        display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;
+    }
+    @@media (max-width: 720px) { .dash-quick { grid-template-columns: 1fr; } }
+
+    .quick-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-xl);
+        padding: 1.1rem;
+        box-shadow: var(--shadow-xs);
+        display: flex; flex-direction: column;
+        gap: .55rem;
+        transition: all var(--transition);
+    }
+    .quick-card:hover { transform: translateY(-1px); box-shadow: var(--shadow-md); border-color: var(--border-strong); }
+    .quick-card.is-warn { border-color: var(--warning-border); background: linear-gradient(180deg, var(--warning-bg) 0%, var(--surface) 60%); }
+
+    .quick-row { display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; }
+    .quick-row .kpi-icon { width: 36px; height: 36px; border-radius: var(--radius); }
+    .quick-link { font-size: .78rem; color: var(--brand); margin-top: auto; }
+    .mb-0 { margin-bottom: 0 !important; }
+
+    .hero-progress { margin-top: 1rem; }
+    .hero-progress-track {
+        height: 8px; background: rgba(255, 255, 255, .15);
+        border-radius: 999px; overflow: hidden;
+    }
+    .hero-progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #fff, rgba(255, 255, 255, .65));
+        border-radius: 999px;
+        transition: width .6s ease;
+    }
+    .hero-progress-meta {
+        margin-top: .5rem;
+        font-size: .8rem; color: rgba(255, 255, 255, .85);
+    }
+    .hero-progress-meta strong { color: white; }
+
+    /* List rows */
+    .list-rows { display: flex; flex-direction: column; gap: .55rem; }
+    .list-row {
+        display: flex; align-items: center; gap: .75rem;
+        padding: .65rem .25rem;
+        border-bottom: 1px solid var(--border);
+    }
+    .list-row:last-child { border-bottom: none; }
+    .list-row-body { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+    .list-row-body strong { font-weight: 500; color: var(--text); font-size: .85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .list-row-body .muted { font-size: .72rem; }
+    .list-row-trail { flex-shrink: 0; }
+</style>
 
 @code {
     DashboardStats? stats;
@@ -82,14 +265,21 @@ else
     List<SeriesPoint> salesByStore = new();
     List<SeriesPoint> paymentMix = new();
     List<Interaction>? followUps;
+    List<InventoryItem>? lowStock;
+    TargetProgress? companyTarget;
 
     protected override async Task OnInitializedAsync()
     {
+        Layout.Set("Dashboard", $"Welcome back, {(User.UserName ?? "there").Split(' ').First()}");
         stats = await Analytics.GetStatsAsync();
         dailyRevenue = await Analytics.GetDailyRevenueAsync();
         topProducts = await Analytics.GetTopProductsAsync();
         salesByStore = await Analytics.GetSalesByStoreAsync();
         paymentMix = await Analytics.GetPaymentMixAsync();
         followUps = await Crm.GetUpcomingFollowUpsAsync();
+        lowStock = await Inv.GetLowStockAsync();
+        var now = DateTime.UtcNow;
+        var progress = await Tg.GetProgressAsync(now.Year, now.Month);
+        companyTarget = progress.FirstOrDefault(t => t.StoreId == null);
     }
 }

@@ -1,0 +1,18 @@
+<div class="avatar @($"avatar-{Size}")" style="@(string.IsNullOrEmpty(Color) ? "" : $"background:{Color};")">@Initials</div>
+
+@code {
+    [Parameter] public string Name { get; set; } = "";
+    [Parameter] public string Size { get; set; } = "md"; // sm | md | lg
+    [Parameter] public string? Color { get; set; }
+
+    string Initials
+    {
+        get
+        {
+            var parts = (Name ?? "?").Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 0) return "?";
+            if (parts.Length == 1) return parts[0][..Math.Min(2, parts[0].Length)].ToUpperInvariant();
+            return $"{parts[0][0]}{parts[1][0]}".ToUpperInvariant();
+        }
+    }
+}

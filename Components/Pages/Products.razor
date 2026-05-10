@@ -1,30 +1,57 @@
 @page "/products"
 @rendermode InteractiveServer
 @inject InventoryService Inv
+@inject LayoutState Layout
+@inject ToastService Toast
 
 <PageTitle>Products</PageTitle>
 
 <div class="page-header">
-    <h1>Products</h1>
-    <button class="btn btn-primary" @onclick="@(() => Edit(new Product()))">+ Add Product</button>
+    <div class="actions">
+        <button class="btn btn-primary" @onclick="@(() => Edit(new Product()))">
+            <i class="bi bi-plus-lg"></i> Add Product
+        </button>
+    </div>
 </div>
 
-@if (products == null) { <p>Loading…</p> }
+@if (products == null) { <Skeleton Height="240" /> }
+else if (!products.Any())
+{
+    <EmptyState Icon="bi-tag" Title="Your catalogue is empty" Description="Add your first product to start selling. Each product carries SKU, barcode, cost price, and selling price.">
+        <Actions>
+            <button class="btn btn-primary" @onclick="@(() => Edit(new Product()))"><i class="bi bi-plus-lg"></i> Add product</button>
+        </Actions>
+    </EmptyState>
+}
 else
 {
     <table class="table">
-        <thead><tr><th>SKU</th><th>Name</th><th>Category</th><th>Unit</th><th class="text-right">Cost</th><th class="text-right">Price</th><th></th></tr></thead>
+        <thead><tr><th>SKU</th><th>Name</th><th>Category</th><th>Unit</th><th class="text-right">Cost</th><th class="text-right">Price</th><th class="text-right">Margin</th><th></th></tr></thead>
         <tbody>
             @foreach (var p in products)
             {
+                var margin = p.UnitPrice == 0 ? 0 : Math.Round((p.UnitPrice - p.CostPrice) / p.UnitPrice * 100m, 1);
+                var color = margin >= 25 ? "var(--success)" : margin >= 10 ? "var(--warning)" : "var(--danger)";
                 <tr>
                     <td><code>@p.Sku</code></td>
-                    <td>@p.Name</td>
-                    <td>@p.Category</td>
+                    <td>
+                        <div class="flex items-center gap-2">
+                            <div class="kpi-icon" style="width: 30px; height: 30px; font-size: .85rem; @ProductIconStyle(p.Category)">
+                                <i class="bi @ProductIcon(p.Category)"></i>
+                            </div>
+                            <strong>@p.Name</strong>
+                        </div>
+                    </td>
+                    <td><span class="badge">@p.Category</span></td>
                     <td>@p.Unit</td>
                     <td class="text-right">@Money.Format(p.CostPrice)</td>
                     <td class="text-right"><strong>@Money.Format(p.UnitPrice)</strong></td>
-                    <td><button class="btn btn-sm" @onclick="() => Edit(p)">Edit</button></td>
+                    <td class="text-right" style="color: @color"><strong>@margin%</strong></td>
+                    <td>
+                        <div class="row-actions">
+                            <button class="btn btn-sm" @onclick="() => Edit(p)" title="Edit"><i class="bi bi-pencil"></i></button>
+                        </div>
+                    </td>
                 </tr>
             }
         </tbody>
@@ -33,33 +60,104 @@ else
 
 @if (editing != null)
 {
-    <div class="modal-backdrop" @onclick="() => editing = null"></div>
-    <div class="modal">
-        <h3>@(editing.Id == 0 ? "New" : "Edit") Product</h3>
-        <div class="form-row"><label>SKU</label><input @bind="editing.Sku" /></div>
-        <div class="form-row"><label>Name</label><input @bind="editing.Name" /></div>
-        <div class="form-row"><label>Category</label><input @bind="editing.Category" /></div>
-        <div class="form-row"><label>Unit</label><input @bind="editing.Unit" /></div>
-        <div class="form-row"><label>Cost Price</label><input type="number" step="0.01" @bind="editing.CostPrice" /></div>
-        <div class="form-row"><label>Unit Price</label><input type="number" step="0.01" @bind="editing.UnitPrice" /></div>
-        <div class="form-row"><label>Active</label><input type="checkbox" @bind="editing.IsActive" /></div>
-        <div class="modal-actions">
-            <button class="btn" @onclick="() => editing = null">Cancel</button>
-            <button class="btn btn-primary" @onclick="Save">Save</button>
+    <div class="slideover-backdrop" @onclick="() => editing = null"></div>
+    <aside class="slideover">
+        <div class="slideover-head">
+            <div>
+                <h3>@(editing.Id == 0 ? "New" : "Edit") product</h3>
+                <p class="muted text-xs mb-0">SKU · pricing · category</p>
+            </div>
+            <button class="btn btn-ghost btn-icon" @onclick="() => editing = null"><i class="bi bi-x-lg"></i></button>
         </div>
-    </div>
+        <div class="slideover-body">
+            <div class="form-section">
+                <div class="form-section-title">Identity</div>
+                <div class="form-row"><label>SKU *</label><input @bind="editing.Sku" placeholder="e.g. RIC-50" /></div>
+                <div class="form-row">
+                    <label>Barcode</label>
+                    <input @bind="editing.Barcode" placeholder="EAN-13 / UPC" />
+                    <span class="help">Scan the product or type the digits.</span>
+                </div>
+                <div class="form-row"><label>Name *</label><input @bind="editing.Name" /></div>
+                <div class="form-row"><label>Category</label>
+                    <select @bind="editing.Category">
+                        @foreach (var c in Categories) { <option>@c</option> }
+                    </select>
+                </div>
+                <div class="form-row"><label>Unit</label><input @bind="editing.Unit" placeholder="pcs / bag / case…" /></div>
+            </div>
+            <div class="form-section">
+                <div class="form-section-title">Pricing</div>
+                <div class="form-row"><label>Cost price (NLe)</label><input type="number" step="0.01" @bind="editing.CostPrice" /></div>
+                <div class="form-row">
+                    <label>Selling price (NLe) *</label>
+                    <input type="number" step="0.01" @bind="editing.UnitPrice" />
+                    @if (editing.UnitPrice > 0 && editing.CostPrice > 0)
+                    {
+                        var pct = Math.Round((editing.UnitPrice - editing.CostPrice) / editing.UnitPrice * 100m, 1);
+                        <span class="help">Margin: <strong>@pct%</strong></span>
+                    }
+                </div>
+            </div>
+            <div class="form-section">
+                <div class="form-row"><label class="flex items-center gap-2"><input type="checkbox" @bind="editing.IsActive" /> Active</label></div>
+            </div>
+        </div>
+        <div class="slideover-foot">
+            <button class="btn" @onclick="() => editing = null">Cancel</button>
+            <button class="btn btn-primary" @onclick="Save"><i class="bi bi-check-lg"></i> Save product</button>
+        </div>
+    </aside>
 }
 
 @code {
+    static readonly string[] Categories = { "Foodstuff", "Building", "Electronics", "Telecom", "Household", "Beverage", "Textile", "Other" };
+
     List<Product>? products;
     Product? editing;
 
-    protected override async Task OnInitializedAsync() => products = await Inv.GetProductsAsync();
-    void Edit(Product p) => editing = p;
-    async Task Save()
+    protected override async Task OnInitializedAsync()
     {
-        await Inv.SaveProductAsync(editing!);
-        editing = null;
+        Layout.Set("Products", "Catalogue & pricing");
         products = await Inv.GetProductsAsync();
     }
+    void Edit(Product p) => editing = p;
+
+    async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(editing!.Sku)) { Toast.Warning("SKU is required."); return; }
+        if (string.IsNullOrWhiteSpace(editing.Name)) { Toast.Warning("Name is required."); return; }
+        if (editing.UnitPrice < 0 || editing.CostPrice < 0) { Toast.Warning("Prices cannot be negative."); return; }
+        try
+        {
+            await Inv.SaveProductAsync(editing);
+            Toast.Success("Product saved.");
+            editing = null;
+            products = await Inv.GetProductsAsync();
+        }
+        catch (Exception ex) { Toast.Error($"Save failed: {ex.Message}"); }
+    }
+
+    static string ProductIcon(string? cat) => cat switch
+    {
+        "Foodstuff" => "bi-basket",
+        "Building" => "bi-bricks",
+        "Electronics" => "bi-cpu",
+        "Telecom" => "bi-phone-vibrate",
+        "Household" => "bi-house-heart",
+        "Beverage" => "bi-cup-straw",
+        "Textile" => "bi-bag",
+        _ => "bi-tag"
+    };
+    static string ProductIconStyle(string? cat) => cat switch
+    {
+        "Foodstuff" => "background: var(--success-bg); color: var(--success);",
+        "Building" => "background: #fff7ed; color: #f97316;",
+        "Electronics" => "background: var(--info-bg); color: var(--info);",
+        "Telecom" => "background: var(--violet-bg); color: var(--violet);",
+        "Household" => "background: #fdf2f8; color: #ec4899;",
+        "Beverage" => "background: #ecfeff; color: #06b6d4;",
+        "Textile" => "background: var(--warning-bg); color: var(--warning);",
+        _ => "background: var(--surface-3); color: var(--text-muted);"
+    };
 }

@@ -1,0 +1,122 @@
+@page "/purchase-orders/new"
+@rendermode InteractiveServer
+@inject PurchaseOrderService Po
+@inject InventoryService Inv
+@inject LayoutState Layout
+@inject NavigationManager Nav
+
+<PageTitle>New Purchase Order</PageTitle>
+
+<div class="page-header">
+    <div class="actions">
+        <a class="btn" href="/purchase-orders"><i class="bi bi-arrow-left"></i> Back</a>
+    </div>
+</div>
+
+@if (suppliers == null || stores == null || products == null) { <p>Loading…</p> }
+else
+{
+    <div class="grid-2">
+        <div class="card">
+            <h3>Order Details</h3>
+            <div class="form-row"><label>Supplier</label>
+                <select @bind="po.SupplierId">
+                    <option value="0">— Choose supplier —</option>
+                    @foreach (var s in suppliers) { <option value="@s.Id">@s.Name</option> }
+                </select>
+            </div>
+            <div class="form-row"><label>Receiving Store</label>
+                <select @bind="po.StoreId">
+                    @foreach (var s in stores) { <option value="@s.Id">@s.Name</option> }
+                </select>
+            </div>
+            <div class="form-row"><label>Notes</label><textarea rows="2" @bind="po.Notes"></textarea></div>
+
+            <h3 class="mt-3">Add Item</h3>
+            <div class="form-row"><label>Product</label>
+                <select @bind="selectedProductId">
+                    <option value="0">— Choose —</option>
+                    @foreach (var p in products) { <option value="@p.Id">@p.Name (@p.Sku)</option> }
+                </select>
+            </div>
+            <div class="form-row"><label>Quantity</label><input type="number" min="1" @bind="qty" /></div>
+            <div class="form-row"><label>Unit Cost (NLe)</label><input type="number" step="0.01" @bind="cost" /></div>
+            <button class="btn btn-primary" @onclick="AddItem">Add Item</button>
+        </div>
+
+        <div class="card">
+            <h3>Items</h3>
+            @if (!po.Items.Any()) { <p class="muted">None added.</p> }
+            else
+            {
+                <table class="table">
+                    <thead><tr><th>Product</th><th>Qty</th><th class="text-right">Cost</th><th class="text-right">Total</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var line in po.Items)
+                        {
+                            <tr>
+                                <td>@line.ProductName</td>
+                                <td>@line.Quantity</td>
+                                <td class="text-right">@Money.Format(line.UnitCost)</td>
+                                <td class="text-right">@Money.Format(line.LineTotal)</td>
+                                <td><button class="btn btn-sm btn-danger" @onclick="() => po.Items.Remove(line)">×</button></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+                <p class="text-right"><strong>Total: @Money.Format(po.Items.Sum(x => x.LineTotal))</strong></p>
+                <button class="btn btn-success btn-lg" @onclick="Save" disabled="@saving">
+                    @(saving ? "Saving…" : "Submit PO")
+                </button>
+                @if (!string.IsNullOrEmpty(error)) { <p class="error">@error</p> }
+            }
+        </div>
+    </div>
+}
+
+@code {
+    PurchaseOrder po = new() { Status = PurchaseOrderStatus.Submitted };
+    List<Supplier>? suppliers;
+    List<Store>? stores;
+    List<Product>? products;
+    int selectedProductId;
+    int qty = 1;
+    decimal cost;
+    bool saving;
+    string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Layout.Set("New Purchase Order", "Create a draft order to send to a supplier");
+        suppliers = await Po.GetSuppliersAsync();
+        stores = await Inv.GetStoresAsync();
+        products = await Inv.GetProductsAsync();
+        if (stores.Any()) po.StoreId = stores.First().Id;
+    }
+
+    void AddItem()
+    {
+        if (selectedProductId == 0 || qty < 1 || cost <= 0) return;
+        var p = products!.First(x => x.Id == selectedProductId);
+        po.Items.Add(new PurchaseOrderItem
+        {
+            ProductId = p.Id, ProductName = p.Name,
+            Quantity = qty, UnitCost = cost, LineTotal = qty * cost
+        });
+        selectedProductId = 0; qty = 1; cost = 0;
+    }
+
+    async Task Save()
+    {
+        if (po.SupplierId == 0) { error = "Select a supplier."; return; }
+        if (!po.Items.Any()) { error = "Add at least one item."; return; }
+        saving = true; error = null;
+        try
+        {
+            await Po.CreateAsync(po);
+            Nav.NavigateTo("/purchase-orders");
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { saving = false; }
+    }
+}

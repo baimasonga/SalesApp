@@ -1,0 +1,40 @@
+@page "/audit"
+@rendermode InteractiveServer
+@inject AuditService Audit
+@inject LayoutState Layout
+
+<PageTitle>Audit Log</PageTitle>
+
+@if (logs == null) { <p class="muted">Loading…</p> }
+else if (!logs.Any())
+{
+    <div class="card empty-state"><i class="bi bi-shield-check"></i><p>No events yet.</p></div>
+}
+else
+{
+    <table class="table">
+        <thead><tr><th>When</th><th>User</th><th>Action</th><th>Entity</th><th>ID</th><th>Details</th></tr></thead>
+        <tbody>
+            @foreach (var l in logs)
+            {
+                <tr>
+                    <td>@l.Timestamp.ToLocalTime().ToString("dd MMM HH:mm:ss")</td>
+                    <td>@l.UserName</td>
+                    <td><span class="badge">@l.Action</span></td>
+                    <td>@l.EntityType</td>
+                    <td>#@l.EntityId</td>
+                    <td>@l.Details</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    List<AuditLog>? logs;
+    protected override async Task OnInitializedAsync()
+    {
+        Layout.Set("Audit Log", "Last 200 events across the system");
+        logs = await Audit.GetRecentAsync();
+    }
+}

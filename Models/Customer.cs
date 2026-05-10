@@ -31,6 +31,8 @@ public class Customer
     [StringLength(500)]
     public string? Notes { get; set; }
 
+    public int LoyaltyPoints { get; set; } = 0;
+
     public List<Sale> Sales { get; set; } = new();
     public List<Interaction> Interactions { get; set; } = new();
 }

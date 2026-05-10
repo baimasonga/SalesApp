@@ -1,0 +1,95 @@
+@page "/suppliers"
+@rendermode InteractiveServer
+@inject PurchaseOrderService Po
+@inject LayoutState Layout
+
+<PageTitle>Suppliers</PageTitle>
+
+<div class="page-header">
+    <div class="actions">
+        <button class="btn btn-primary" @onclick="@(() => Edit(new Supplier()))"><i class="bi bi-plus-lg"></i> Add Supplier</button>
+    </div>
+</div>
+
+@if (suppliers == null) { <Skeleton Height="200" /> }
+else if (!suppliers.Any())
+{
+    <EmptyState Icon="bi-building" Title="No suppliers yet" Description="Add suppliers so you can create purchase orders and track where stock comes from.">
+        <Actions>
+            <button class="btn btn-primary" @onclick="@(() => Edit(new Supplier()))"><i class="bi bi-plus-lg"></i> Add supplier</button>
+        </Actions>
+    </EmptyState>
+}
+else
+{
+    <table class="table">
+        <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Country</th><th>Address</th><th>Active</th><th></th></tr></thead>
+        <tbody>
+            @foreach (var s in suppliers)
+            {
+                <tr>
+                    <td><strong>@s.Name</strong></td>
+                    <td>@s.Phone</td>
+                    <td>@s.Email</td>
+                    <td>@s.Country</td>
+                    <td>@s.Address</td>
+                    <td>@(s.IsActive ? "✓" : "—")</td>
+                    <td><button class="btn btn-sm" @onclick="() => Edit(s)" title="Edit"><i class="bi bi-pencil"></i></button></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (editing != null)
+{
+    <div class="slideover-backdrop" @onclick="() => editing = null"></div>
+    <aside class="slideover">
+        <div class="slideover-head">
+            <div>
+                <h3>@(editing.Id == 0 ? "New" : "Edit") supplier</h3>
+                <p class="muted text-xs mb-0">Vendor that supplies your stock.</p>
+            </div>
+            <button class="btn btn-ghost btn-icon" @onclick="() => editing = null"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="slideover-body">
+            <div class="form-section">
+                <div class="form-section-title">Identity</div>
+                <div class="form-row"><label>Name *</label><input @bind="editing.Name" /></div>
+                <div class="form-row"><label>Country</label><input @bind="editing.Country" /></div>
+                <div class="form-row"><label>Address</label><input @bind="editing.Address" /></div>
+            </div>
+            <div class="form-section">
+                <div class="form-section-title">Contact</div>
+                <div class="form-row"><label>Phone</label><input @bind="editing.Phone" placeholder="+232 …" /></div>
+                <div class="form-row"><label>Email</label><input @bind="editing.Email" /></div>
+            </div>
+            <div class="form-section">
+                <div class="form-row"><label class="flex items-center gap-2"><input type="checkbox" @bind="editing.IsActive" /> Active</label></div>
+            </div>
+        </div>
+        <div class="slideover-foot">
+            <button class="btn" @onclick="() => editing = null">Cancel</button>
+            <button class="btn btn-primary" @onclick="Save"><i class="bi bi-check-lg"></i> Save supplier</button>
+        </div>
+    </aside>
+}
+
+@code {
+    List<Supplier>? suppliers;
+    Supplier? editing;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Layout.Set("Suppliers", "Vendors who supply your stock");
+        suppliers = await Po.GetSuppliersAsync();
+    }
+    void Edit(Supplier s) => editing = s;
+    async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(editing!.Name)) return;
+        await Po.SaveSupplierAsync(editing!);
+        editing = null;
+        suppliers = await Po.GetSuppliersAsync();
+    }
+}

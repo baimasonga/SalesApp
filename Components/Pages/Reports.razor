@@ -1,48 +1,144 @@
 @page "/reports"
 @rendermode InteractiveServer
 @inject AnalyticsService Analytics
+@inject ExpenseService Ex
+@inject LayoutState Layout
 
 <PageTitle>Reports & Analytics</PageTitle>
 
-<h1>Reports & Analytics</h1>
-<p class="muted">Performance insights for your business.</p>
+<div class="page-header">
+    <div class="actions">
+        <a class="btn" href="@SalesCsvUrl" target="_blank"><i class="bi bi-download"></i> Sales CSV</a>
+        <a class="btn" href="@NraCsvUrl" target="_blank"><i class="bi bi-file-earmark-spreadsheet"></i> NRA Tax CSV</a>
+    </div>
+</div>
+
+<div class="filter-bar">
+    <label>From<input type="date" @bind="from" @bind:after="Reload" /></label>
+    <label>To<input type="date" @bind="to" @bind:after="Reload" /></label>
+    <button class="btn btn-sm" @onclick="@(() => LastNDays(7))">Last 7 days</button>
+    <button class="btn btn-sm" @onclick="@(() => LastNDays(30))">Last 30 days</button>
+    <button class="btn btn-sm" @onclick="ThisMonth">This month</button>
+</div>
 
 @if (loading) { <p>Loading…</p> }
 else
 {
     <div class="grid-2">
         <div class="card">
-            <h3>Daily Revenue (last 30 days)</h3>
-            <BarChart Points="daily" Color="#2563eb" />
+            <h3>Daily Revenue</h3>
+            <ChartJs Points="daily" Type="line" Color="#0072c6" Height="240" />
         </div>
         <div class="card">
             <h3>Top Products by Revenue</h3>
-            <BarChart Points="topProducts" Color="#16a34a" Horizontal="true" />
+            <ChartJs Points="topProducts" Type="bar" Color="#10b981" Height="240" />
         </div>
         <div class="card">
             <h3>Sales by Store</h3>
-            <BarChart Points="byStore" Color="#9333ea" Horizontal="true" />
+            <ChartJs Points="byStore" Type="bar" Color="#8b5cf6" Height="240" />
         </div>
         <div class="card">
             <h3>Payment Methods</h3>
-            <BarChart Points="paymentMix" Color="#ea580c" Horizontal="true" />
+            <ChartJs Points="paymentMix" Type="doughnut" Color="#f97316" Height="240" />
         </div>
+    </div>
+
+    @if (pnl != null)
+    {
+        <div class="card">
+            <h3>Profit & Loss</h3>
+            <div class="kpi-grid" style="grid-template-columns: repeat(5, minmax(0, 1fr));">
+                <KpiCard Title="Revenue" Value="@Money.Format(pnl.Revenue)" Accent="blue" Icon="bi-graph-up" />
+                <KpiCard Title="COGS" Value="@Money.Format(pnl.CostOfGoods)" Accent="orange" Icon="bi-box" />
+                <KpiCard Title="Gross Profit" Value="@Money.Format(pnl.GrossProfit)" Accent="teal" Icon="bi-cash-stack" />
+                <KpiCard Title="Expenses" Value="@Money.Format(pnl.Expenses)" Accent="red" Icon="bi-cash" />
+                <KpiCard Title="Net Profit" Value="@Money.Format(pnl.NetProfit)" Accent="@(pnl.NetProfit >= 0 ? "green" : "red")" Icon="bi-trophy" />
+            </div>
+        </div>
+    }
+
+    <div class="card">
+        <h3>Profit Margin by Product</h3>
+        @if (profit == null || !profit.Any()) { <p class="muted">No data in this range.</p> }
+        else
+        {
+            <table class="table">
+                <thead><tr><th>Product</th><th class="text-right">Qty</th><th class="text-right">Revenue</th><th class="text-right">Cost</th><th class="text-right">Profit</th><th class="text-right">Margin</th></tr></thead>
+                <tbody>
+                    @foreach (var r in profit)
+                    {
+                        var color = r.MarginPercent >= 25 ? "#16a34a" : r.MarginPercent >= 10 ? "#ea580c" : "#dc2626";
+                        <tr>
+                            <td>@r.Name</td>
+                            <td class="text-right">@r.Quantity</td>
+                            <td class="text-right">@Money.Format(r.Revenue)</td>
+                            <td class="text-right">@Money.Format(r.Cost)</td>
+                            <td class="text-right"><strong>@Money.Format(r.Profit)</strong></td>
+                            <td class="text-right" style="color:@color"><strong>@r.MarginPercent.ToString("0.#")%</strong></td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td><strong>Total</strong></td>
+                        <td class="text-right"><strong>@profit.Sum(p => p.Quantity)</strong></td>
+                        <td class="text-right"><strong>@Money.Format(profit.Sum(p => p.Revenue))</strong></td>
+                        <td class="text-right"><strong>@Money.Format(profit.Sum(p => p.Cost))</strong></td>
+                        <td class="text-right"><strong>@Money.Format(profit.Sum(p => p.Profit))</strong></td>
+                        <td class="text-right"><strong>@(profit.Sum(p => p.Revenue) == 0 ? "0%" : (profit.Sum(p => p.Profit) / profit.Sum(p => p.Revenue) * 100m).ToString("0.#") + "%")</strong></td>
+                    </tr>
+                </tfoot>
+            </table>
+        }
     </div>
 }
 
 @code {
     bool loading = true;
+    DateTime? from = DateTime.UtcNow.Date.AddDays(-29);
+    DateTime? to = DateTime.UtcNow.Date;
+
     List<SeriesPoint> daily = new();
     List<SeriesPoint> topProducts = new();
     List<SeriesPoint> byStore = new();
     List<SeriesPoint> paymentMix = new();
+    List<ProductProfitRow>? profit;
+    ProfitLoss? pnl;
+
+    string SalesCsvUrl => $"/export/sales.csv?from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}";
+    string NraCsvUrl => $"/export/nra.csv?from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}";
 
     protected override async Task OnInitializedAsync()
     {
-        daily = await Analytics.GetDailyRevenueAsync(30);
+        Layout.Set("Reports & Analytics", "Performance insights for your business");
+        await Reload();
+    }
+
+    async Task Reload()
+    {
+        loading = true;
+        var days = from.HasValue && to.HasValue ? Math.Max(1, (int)(to.Value - from.Value).TotalDays + 1) : 30;
+        daily = await Analytics.GetDailyRevenueAsync(days);
         topProducts = await Analytics.GetTopProductsAsync(10);
         byStore = await Analytics.GetSalesByStoreAsync();
         paymentMix = await Analytics.GetPaymentMixAsync();
+        profit = await Analytics.GetProductProfitAsync(from, to);
+        if (from.HasValue && to.HasValue) pnl = await Ex.GetProfitLossAsync(from.Value, to.Value);
         loading = false;
+    }
+
+    async Task LastNDays(int n)
+    {
+        from = DateTime.UtcNow.Date.AddDays(-(n - 1));
+        to = DateTime.UtcNow.Date;
+        await Reload();
+    }
+
+    async Task ThisMonth()
+    {
+        var now = DateTime.UtcNow;
+        from = new DateTime(now.Year, now.Month, 1);
+        to = now.Date;
+        await Reload();
     }
 }

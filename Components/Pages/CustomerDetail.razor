@@ -1,6 +1,7 @@
 @page "/customers/{Id:int}"
 @rendermode InteractiveServer
 @inject CrmService Crm
+@inject LayoutState Layout
 @inject NavigationManager Nav
 
 @if (customer == null)
@@ -12,25 +13,37 @@ else
     <PageTitle>@customer.FullName</PageTitle>
 
     <div class="page-header">
-        <div>
-            <h1>@customer.FullName</h1>
-            <p class="muted">
-                @customer.BusinessName
-                @if (!string.IsNullOrEmpty(customer.BusinessName) && !string.IsNullOrEmpty(customer.District)) { <span> · </span> }
-                @customer.District
-                · <span class="badge">@customer.Segment</span>
-            </p>
+        <div class="actions">
+            <a class="btn" href="/customers"><i class="bi bi-arrow-left"></i> Back to customers</a>
         </div>
-        <a class="btn" href="/customers">← Back</a>
     </div>
+    <p class="muted mb-3">
+        @customer.BusinessName
+        @if (!string.IsNullOrEmpty(customer.BusinessName) && !string.IsNullOrEmpty(customer.District)) { <span> · </span> }
+        @customer.District
+        · <span class="badge">@customer.Segment</span>
+    </p>
 
     <div class="grid-2">
         <div class="card">
             <h3>Contact</h3>
-            <p><strong>Phone:</strong> @customer.Phone</p>
-            <p><strong>Email:</strong> @customer.Email</p>
+            <p><strong>Phone:</strong> @customer.Phone
+                @if (!string.IsNullOrEmpty(customer.Phone))
+                {
+                    <a class="btn btn-sm" href="@($"tel:{customer.Phone}")"><i class="bi bi-telephone"></i> Call</a>
+                    <a class="btn btn-sm" href="@($"sms:{customer.Phone}")"><i class="bi bi-chat-left-dots"></i> SMS</a>
+                    <a class="btn btn-sm" href="@WhatsAppLink(customer.Phone)" target="_blank"><i class="bi bi-whatsapp"></i> WhatsApp</a>
+                }
+            </p>
+            <p><strong>Email:</strong> @customer.Email
+                @if (!string.IsNullOrEmpty(customer.Email))
+                {
+                    <a class="btn btn-sm" href="@($"mailto:{customer.Email}")"><i class="bi bi-envelope"></i> Email</a>
+                }
+            </p>
             <p><strong>Address:</strong> @customer.Address</p>
             <p><strong>Notes:</strong> @customer.Notes</p>
+            <p><strong><i class="bi bi-gift"></i> Loyalty Points:</strong> <span class="badge">@customer.LoyaltyPoints</span> (1 pt per NLe 100 spent)</p>
             <p class="muted">Customer since @customer.CreatedAt.ToString("dd MMM yyyy")</p>
         </div>
 
@@ -108,7 +121,15 @@ else
     protected override async Task OnParametersSetAsync()
     {
         customer = await Crm.GetAsync(Id);
+        Layout.Set(customer?.FullName ?? "Customer", customer?.BusinessName);
         newInt = new Interaction { CustomerId = Id, When = DateTime.UtcNow };
+    }
+
+    static string WhatsAppLink(string? phone)
+    {
+        if (string.IsNullOrWhiteSpace(phone)) return "#";
+        var digits = new string(phone.Where(char.IsDigit).ToArray());
+        return $"https://wa.me/{digits}";
     }
 
     async Task LogInteraction()

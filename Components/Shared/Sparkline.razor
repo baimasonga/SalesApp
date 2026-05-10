@@ -1,0 +1,33 @@
+@using SalesApp.Services
+
+@if (Points != null && Points.Count >= 2)
+{
+    var vals = Points.Select(p => (double)p.Value).ToList();
+    var min = vals.Min();
+    var max = vals.Max();
+    var range = max - min;
+    if (range == 0) range = 1;
+    var w = 100.0;
+    var h = 32.0;
+    var step = w / (vals.Count - 1);
+    var pts = string.Join(' ', vals.Select((v, i) =>
+        $"{(i * step).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)},{(h - ((v - min) / range) * h).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)}"));
+    var area = $"M 0,{h.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)} L " + pts + $" L {w.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)},{h.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)} Z";
+
+    <svg class="kpi-spark" viewBox="0 0 100 32" preserveAspectRatio="none" aria-hidden="true">
+        <defs>
+            <linearGradient id="@($"sg{Id}")" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="@Color" stop-opacity=".3" />
+                <stop offset="100%" stop-color="@Color" stop-opacity="0" />
+            </linearGradient>
+        </defs>
+        <path d="@area" fill="@($"url(#sg{Id})")" />
+        <polyline points="@pts" fill="none" stroke="@Color" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+}
+
+@code {
+    [Parameter] public List<SeriesPoint>? Points { get; set; }
+    [Parameter] public string Color { get; set; } = "#4f46e5";
+    string Id { get; } = Guid.NewGuid().ToString("N")[..6];
+}

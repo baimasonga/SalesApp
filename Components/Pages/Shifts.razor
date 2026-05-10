@@ -1,0 +1,103 @@
+@page "/shifts"
+@rendermode InteractiveServer
+@inject EmployeeService Emp
+@inject InventoryService Inv
+@inject LayoutState Layout
+@inject ToastService Toast
+
+<PageTitle>Shifts</PageTitle>
+
+<div class="page-header">
+    <div class="actions">
+        <button class="btn btn-primary" @onclick="() => showClockIn = true"><i class="bi bi-box-arrow-in-right"></i> Clock In</button>
+    </div>
+</div>
+
+@if (shifts == null) { <p class="muted">Loading…</p> }
+else
+{
+    <table class="table">
+        <thead><tr><th>Employee</th><th>Store</th><th>Clock In</th><th>Clock Out</th><th>Duration</th><th></th></tr></thead>
+        <tbody>
+            @foreach (var s in shifts)
+            {
+                var dur = (s.ClockOut ?? DateTime.UtcNow) - s.ClockIn;
+                <tr>
+                    <td><strong>@s.Employee?.FullName</strong></td>
+                    <td>@s.Store?.Name</td>
+                    <td>@s.ClockIn.ToString("dd MMM HH:mm")</td>
+                    <td>@(s.ClockOut?.ToString("dd MMM HH:mm") ?? "—")</td>
+                    <td>@dur.Hours h @dur.Minutes m</td>
+                    <td>
+                        @if (!s.ClockOut.HasValue)
+                        {
+                            <button class="btn btn-sm btn-danger" @onclick="() => ClockOut(s.Id)"><i class="bi bi-box-arrow-right"></i> Clock Out</button>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (showClockIn)
+{
+    <div class="modal-backdrop" @onclick="() => showClockIn = false"></div>
+    <div class="modal">
+        <h3>Clock In</h3>
+        <div class="form-row"><label>Employee</label>
+            <select @bind="empId">
+                <option value="0">— Choose —</option>
+                @if (employees != null) { @foreach (var e in employees) { <option value="@e.Id">@e.FullName (@e.Role)</option> } }
+            </select>
+        </div>
+        <div class="form-row"><label>Store</label>
+            <select @bind="storeId">
+                <option value="0">— Choose —</option>
+                @if (stores != null) { @foreach (var s in stores) { <option value="@s.Id">@s.Name</option> } }
+            </select>
+        </div>
+        <div class="modal-actions">
+            <button class="btn" @onclick="() => showClockIn = false">Cancel</button>
+            <button class="btn btn-primary" @onclick="DoClockIn">Clock In</button>
+        </div>
+    </div>
+}
+
+@code {
+    List<Shift>? shifts;
+    List<Employee>? employees;
+    List<Store>? stores;
+    bool showClockIn;
+    int empId, storeId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Layout.Set("Shifts", "Staff time tracking");
+        await Reload();
+    }
+
+    async Task Reload()
+    {
+        shifts = await Emp.GetShiftsAsync();
+        employees = await Emp.GetAllAsync();
+        stores = await Inv.GetStoresAsync();
+    }
+
+    async Task DoClockIn()
+    {
+        if (empId == 0 || storeId == 0) { Toast.Warning("Pick an employee and store."); return; }
+        await Emp.ClockInAsync(empId, storeId);
+        Toast.Success("Clocked in.");
+        showClockIn = false;
+        empId = 0; storeId = 0;
+        await Reload();
+    }
+
+    async Task ClockOut(int id)
+    {
+        await Emp.ClockOutAsync(id);
+        Toast.Success("Clocked out.");
+        await Reload();
+    }
+}

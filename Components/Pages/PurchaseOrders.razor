@@ -1,0 +1,71 @@
+@page "/purchase-orders"
+@rendermode InteractiveServer
+@inject PurchaseOrderService Po
+@inject LayoutState Layout
+@inject ToastService Toast
+
+<PageTitle>Purchase Orders</PageTitle>
+
+<div class="page-header">
+    <div class="actions">
+        <a class="btn btn-primary" href="/purchase-orders/new"><i class="bi bi-plus-lg"></i> New PO</a>
+    </div>
+</div>
+
+@if (pos == null) { <Skeleton Height="200" /> }
+else if (!pos.Any())
+{
+    <EmptyState Icon="bi-cart3" Title="No purchase orders" Description="Create POs to send to your suppliers; receiving them auto-credits stock to the chosen store.">
+        <Actions>
+            <a class="btn btn-primary" href="/purchase-orders/new"><i class="bi bi-plus-lg"></i> New PO</a>
+        </Actions>
+    </EmptyState>
+}
+else
+{
+    <table class="table">
+        <thead><tr><th>PO Number</th><th>Date</th><th>Supplier</th><th>Store</th><th>Items</th><th class="text-right">Total</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+            @foreach (var p in pos)
+            {
+                <tr>
+                    <td><strong>@p.PoNumber</strong></td>
+                    <td>@p.OrderDate.ToString("dd MMM yyyy")</td>
+                    <td>@p.Supplier?.Name</td>
+                    <td>@p.Store?.Name</td>
+                    <td>@p.Items.Count</td>
+                    <td class="text-right">@Money.Format(p.Total)</td>
+                    <td><span class="status status-@p.Status.ToString().ToLower()">@p.Status</span></td>
+                    <td>
+                        <div class="row-actions">
+                            @if (p.Status == PurchaseOrderStatus.Draft || p.Status == PurchaseOrderStatus.Submitted)
+                            {
+                                <button class="btn btn-sm btn-success" @onclick="() => Receive(p.Id)" title="Receive into stock"><i class="bi bi-box-arrow-in-down"></i> Receive</button>
+                                <button class="btn btn-sm btn-danger" @onclick="() => Cancel(p.Id)" title="Cancel"><i class="bi bi-x"></i></button>
+                            }
+                        </div>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    List<PurchaseOrder>? pos;
+    protected override async Task OnInitializedAsync()
+    {
+        Layout.Set("Purchase Orders", "Stock orders sent to suppliers");
+        pos = await Po.GetPosAsync();
+    }
+    async Task Receive(int id)
+    {
+        try { await Po.ReceiveAsync(id); Toast.Success("Stock received."); pos = await Po.GetPosAsync(); }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+    }
+    async Task Cancel(int id)
+    {
+        try { await Po.CancelAsync(id); Toast.Warning("PO cancelled."); pos = await Po.GetPosAsync(); }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+    }
+}

@@ -20,18 +20,26 @@ public static class DbSeeder
 
         var products = new[]
         {
-            new Product { Sku = "RIC-50", Name = "Rice (50kg bag)", Category = "Foodstuff", UnitPrice = 850m, CostPrice = 720m, Unit = "bag" },
-            new Product { Sku = "OIL-5L", Name = "Vegetable Oil 5L", Category = "Foodstuff", UnitPrice = 220m, CostPrice = 180m, Unit = "btl" },
-            new Product { Sku = "SUG-1K", Name = "Sugar 1kg", Category = "Foodstuff", UnitPrice = 28m, CostPrice = 22m, Unit = "pkt" },
-            new Product { Sku = "CMT-50", Name = "Cement 50kg", Category = "Building", UnitPrice = 145m, CostPrice = 125m, Unit = "bag" },
-            new Product { Sku = "ZNC-3M", Name = "Zinc Sheet 3m", Category = "Building", UnitPrice = 95m, CostPrice = 78m, Unit = "sht" },
-            new Product { Sku = "PHN-A12", Name = "Smartphone A12", Category = "Electronics", UnitPrice = 1450m, CostPrice = 1200m, Unit = "pcs" },
-            new Product { Sku = "AIR-100", Name = "Airtime Voucher 100", Category = "Telecom", UnitPrice = 100m, CostPrice = 92m, Unit = "pcs" },
-            new Product { Sku = "SOA-BAR", Name = "Bar Soap", Category = "Household", UnitPrice = 15m, CostPrice = 11m, Unit = "pcs" },
-            new Product { Sku = "WTR-50", Name = "Bottled Water (case)", Category = "Beverage", UnitPrice = 65m, CostPrice = 50m, Unit = "case" },
-            new Product { Sku = "FAB-YD", Name = "African Print Fabric", Category = "Textile", UnitPrice = 180m, CostPrice = 140m, Unit = "yd" }
+            new Product { Sku = "RIC-50", Barcode = "5901234123451", Name = "Rice (50kg bag)", Category = "Foodstuff", UnitPrice = 850m, CostPrice = 720m, Unit = "bag" },
+            new Product { Sku = "OIL-5L", Barcode = "5901234123452", Name = "Vegetable Oil 5L", Category = "Foodstuff", UnitPrice = 220m, CostPrice = 180m, Unit = "btl" },
+            new Product { Sku = "SUG-1K", Barcode = "5901234123453", Name = "Sugar 1kg", Category = "Foodstuff", UnitPrice = 28m, CostPrice = 22m, Unit = "pkt" },
+            new Product { Sku = "CMT-50", Barcode = "5901234123454", Name = "Cement 50kg", Category = "Building", UnitPrice = 145m, CostPrice = 125m, Unit = "bag" },
+            new Product { Sku = "ZNC-3M", Barcode = "5901234123455", Name = "Zinc Sheet 3m", Category = "Building", UnitPrice = 95m, CostPrice = 78m, Unit = "sht" },
+            new Product { Sku = "PHN-A12", Barcode = "5901234123456", Name = "Smartphone A12", Category = "Electronics", UnitPrice = 1450m, CostPrice = 1200m, Unit = "pcs" },
+            new Product { Sku = "AIR-100", Barcode = "5901234123457", Name = "Airtime Voucher 100", Category = "Telecom", UnitPrice = 100m, CostPrice = 92m, Unit = "pcs" },
+            new Product { Sku = "SOA-BAR", Barcode = "5901234123458", Name = "Bar Soap", Category = "Household", UnitPrice = 15m, CostPrice = 11m, Unit = "pcs" },
+            new Product { Sku = "WTR-50", Barcode = "5901234123459", Name = "Bottled Water (case)", Category = "Beverage", UnitPrice = 65m, CostPrice = 50m, Unit = "case" },
+            new Product { Sku = "FAB-YD", Barcode = "5901234123460", Name = "African Print Fabric", Category = "Textile", UnitPrice = 180m, CostPrice = 140m, Unit = "yd" }
         };
         db.Products.AddRange(products);
+
+        var suppliers = new[]
+        {
+            new Supplier { Name = "Sierra Wholesale Foods Ltd", Phone = "+232 76 900 100", Email = "sales@swfoods.sl", Country = "Sierra Leone", Address = "Kissy Road, Freetown" },
+            new Supplier { Name = "Atlantic Imports Ltd", Phone = "+232 77 900 200", Email = "info@atlanticimports.sl", Country = "Sierra Leone", Address = "Wallace Johnson St, Freetown" },
+            new Supplier { Name = "Guangzhou Trading Co.", Phone = "+86 20 8888 0000", Email = "export@gz-trading.cn", Country = "China" }
+        };
+        db.Suppliers.AddRange(suppliers);
 
         var customers = new[]
         {
@@ -80,6 +88,7 @@ public static class DbSeeder
                     ProductName = p.Name,
                     Quantity = qty,
                     UnitPrice = p.UnitPrice,
+                    CostPrice = p.CostPrice,
                     LineTotal = qty * p.UnitPrice
                 };
                 sale.Items.Add(line);
@@ -91,6 +100,49 @@ public static class DbSeeder
             sales.Add(sale);
         }
         db.Sales.AddRange(sales);
+
+        // Tenant (single demo tenant)
+        db.Tenants.Add(new Tenant { Name = "Demo Business SL", Subdomain = "demo", Phone = "+232 76 000 000", Email = "info@demo.sl", DefaultCurrency = "NLe" });
+
+        // Employees
+        db.Employees.AddRange(
+            new Employee { FullName = "Aminata Kamara", Role = "Manager", Phone = "+232 76 100 100", Email = "aminata@demo.sl", StoreId = stores[0].Id, MonthlySalary = 4500m, CommissionRate = 0.015m },
+            new Employee { FullName = "Mohamed Sesay", Role = "Cashier", Phone = "+232 77 200 200", StoreId = stores[1].Id, MonthlySalary = 2800m, CommissionRate = 0.020m },
+            new Employee { FullName = "Fatmata Conteh", Role = "Cashier", Phone = "+232 78 300 300", StoreId = stores[2].Id, MonthlySalary = 2800m, CommissionRate = 0.020m },
+            new Employee { FullName = "Joseph Mansaray", Role = "Stock Clerk", Phone = "+232 99 400 400", StoreId = stores[0].Id, MonthlySalary = 2300m, CommissionRate = 0m }
+        );
+
+        // A couple of expenses
+        db.Expenses.AddRange(
+            new Expense { StoreId = stores[0].Id, Description = "Generator fuel (April)", Category = "Utilities", Amount = 350m, PaidTo = "NP Sierra Leone", RecordedBy = "Aminata", Date = DateTime.UtcNow.AddDays(-3) },
+            new Expense { StoreId = stores[1].Id, Description = "Bo branch monthly rent", Category = "Rent", Amount = 1500m, PaidTo = "Landlord", RecordedBy = "Mohamed", Date = DateTime.UtcNow.AddDays(-15) }
+        );
+
+        // One sample layaway
+        db.Layaways.Add(new Layaway
+        {
+            LayawayNumber = $"LAY-{DateTime.UtcNow:yyyyMMdd}-001",
+            CustomerId = customers[0].Id,
+            StoreId = stores[0].Id,
+            Description = "Smartphone A12 layaway",
+            TotalAmount = 1450m,
+            AmountPaid = 500m,
+            Status = LayawayStatus.Active,
+            Payments = new List<LayawayPayment>
+            {
+                new() { Date = DateTime.UtcNow.AddDays(-7), Amount = 300m, Method = PaymentMethod.Cash, ReceivedBy = "Aminata" },
+                new() { Date = DateTime.UtcNow.AddDays(-1), Amount = 200m, Method = PaymentMethod.MobileMoney, Reference = "OM-23890", ReceivedBy = "Aminata" }
+            }
+        });
+
+        // Sales targets for current month
+        var now = DateTime.UtcNow;
+        db.SalesTargets.AddRange(
+            new SalesTarget { StoreId = null, Year = now.Year, Month = now.Month, TargetAmount = 250000m, Notes = "Company-wide" },
+            new SalesTarget { StoreId = stores[0].Id, Year = now.Year, Month = now.Month, TargetAmount = 120000m },
+            new SalesTarget { StoreId = stores[1].Id, Year = now.Year, Month = now.Month, TargetAmount = 80000m },
+            new SalesTarget { StoreId = stores[2].Id, Year = now.Year, Month = now.Month, TargetAmount = 50000m }
+        );
 
         db.Interactions.AddRange(
             new Interaction { CustomerId = customers[0].Id, Type = InteractionType.Call, Subject = "Bulk rice quote", Details = "Requested pricing for 200 bags.", Owner = "Aminata", FollowUpDate = DateTime.UtcNow.AddDays(3) },

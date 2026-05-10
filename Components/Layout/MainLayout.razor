@@ -1,23 +1,215 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject CurrentUserService User
+@inject LayoutState Layout
+@inject InventoryService Inv
+@inject NavigationManager Nav
+@inject ThemeService Theme
+@inject NavDrawerState Drawer
+@inject IJSRuntime JS
 
-<div class="page">
-    <div class="sidebar">
+<div class="page @(Drawer.IsOpen ? "drawer-open" : "")">
+    <aside class="sidebar @(Drawer.IsOpen ? "open" : "")">
         <NavMenu />
-    </div>
+    </aside>
+    @if (Drawer.IsOpen)
+    {
+        <div class="drawer-backdrop" @onclick="() => Drawer.Close()"></div>
+    }
 
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
-        </div>
+    <main class="main">
+        <header class="topbar">
+            <div class="topbar-left">
+                <button class="nav-drawer-toggle" @onclick="() => Drawer.Toggle()" aria-label="Toggle navigation">
+                    <i class="bi bi-list"></i>
+                </button>
+                <div class="topbar-title">
+                    @if (Layout.Breadcrumbs.Any())
+                    {
+                        <div class="breadcrumb">
+                            @for (int i = 0; i < Layout.Breadcrumbs.Count; i++)
+                            {
+                                var c = Layout.Breadcrumbs[i];
+                                if (c.Href != null)
+                                {
+                                    <a href="@c.Href">@c.Label</a>
+                                }
+                                else
+                                {
+                                    <span class="current">@c.Label</span>
+                                }
+                                if (i < Layout.Breadcrumbs.Count - 1) { <span class="sep">/</span> }
+                            }
+                        </div>
+                    }
+                    <h1>@Layout.Title</h1>
+                    @if (!string.IsNullOrEmpty(Layout.Subtitle))
+                    {
+                        <p class="subtitle">@Layout.Subtitle</p>
+                    }
+                </div>
+            </div>
 
-        <article class="content px-4">
+            <div class="topbar-actions">
+                <button class="cmdk-trigger" @onclick="() => cmdkOpen = true" aria-label="Open command palette">
+                    <i class="bi bi-search"></i>
+                    <span>Search anything…</span>
+                    <span class="hint"><kbd>⌘</kbd><kbd>K</kbd></span>
+                </button>
+
+                <button class="theme-toggle" title="Toggle theme" @onclick="ToggleTheme">
+                    <i class="bi @(Theme.Theme == "dark" ? "bi-sun" : "bi-moon-stars")"></i>
+                </button>
+
+                <a href="/reorder" class="topbar-bell" title="@(lowStockCount) item(s) need reordering">
+                    <i class="bi bi-bell"></i>
+                    @if (lowStockCount > 0)
+                    {
+                        <span class="topbar-bell-dot">@lowStockCount</span>
+                    }
+                </a>
+
+                <a href="/sales/new" class="btn btn-primary topbar-cta">
+                    <i class="bi bi-plus-lg"></i> <span>New Sale</span>
+                </a>
+
+                <button class="topbar-user" @onclick="ToggleMenu">
+                    <Avatar Name="@User.UserName" Size="sm" />
+                    <span class="topbar-user-meta">
+                        <span class="topbar-user-name">@User.UserName</span>
+                        <span class="topbar-user-role">@User.Role</span>
+                    </span>
+                    <i class="bi bi-chevron-down"></i>
+                </button>
+
+                @if (menuOpen)
+                {
+                    <div class="topbar-menu-backdrop" @onclick="CloseMenu"></div>
+                    <div class="topbar-menu">
+                        <div class="topbar-menu-header">
+                            <div class="flex items-center gap-2">
+                                <Avatar Name="@User.UserName" Size="md" />
+                                <div>
+                                    <strong>@User.UserName</strong>
+                                    <div class="muted text-xs">@User.Role</div>
+                                </div>
+                            </div>
+                        </div>
+                        <a href="/login" @onclick="CloseMenu"><i class="bi bi-arrow-left-right"></i> Switch user</a>
+                        <a href="/audit" @onclick="CloseMenu"><i class="bi bi-shield-check"></i> Audit log</a>
+                        <a href="/targets" @onclick="CloseMenu"><i class="bi bi-bullseye"></i> Sales targets</a>
+                        <button class="menu-btn" @onclick="ShowShortcuts"><i class="bi bi-keyboard"></i> Keyboard shortcuts</button>
+                    </div>
+                }
+            </div>
+        </header>
+
+        <article class="content">
             @Body
         </article>
     </main>
 </div>
+
+<CommandPalette @bind-Open="cmdkOpen" />
+
+@if (showShortcuts)
+{
+    <div class="modal-backdrop" @onclick="() => showShortcuts = false"></div>
+    <div class="modal">
+        <h3><i class="bi bi-keyboard"></i> Keyboard Shortcuts</h3>
+        <table class="table">
+            <tbody>
+                <tr><td><kbd>⌘</kbd> <kbd>K</kbd></td><td>Open command palette</td></tr>
+                <tr><td><kbd>N</kbd></td><td>New sale</td></tr>
+                <tr><td><kbd>D</kbd></td><td>Dashboard</td></tr>
+                <tr><td><kbd>R</kbd></td><td>Reports</td></tr>
+                <tr><td><kbd>?</kbd></td><td>Show this help</td></tr>
+            </tbody>
+        </table>
+        <div class="modal-actions">
+            <button class="btn btn-primary" @onclick="() => showShortcuts = false">Got it</button>
+        </div>
+    </div>
+}
+
+<ToastContainer />
 
 <div id="blazor-error-ui">
     An unhandled error has occurred.
     <a href="" class="reload">Reload</a>
     <a class="dismiss">🗙</a>
 </div>
+
+@code {
+    int lowStockCount;
+    bool menuOpen;
+    bool showShortcuts;
+    bool cmdkOpen;
+    DotNetObjectReference<MainLayout>? selfRef;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Layout.Changed += StateHasChanged;
+        Theme.Changed += StateHasChanged;
+        Drawer.Changed += StateHasChanged;
+        Nav.LocationChanged += OnLocationChanged;
+        try
+        {
+            var low = await Inv.GetLowStockAsync();
+            lowStockCount = low.Count;
+        }
+        catch { }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            selfRef = DotNetObjectReference.Create(this);
+            try
+            {
+                var t = await JS.InvokeAsync<string>("salone.getTheme");
+                Theme.Set(t);
+                await JS.InvokeVoidAsync("salone.registerShortcuts", selfRef);
+            }
+            catch { }
+        }
+    }
+
+    [JSInvokable("ShowShortcuts")]
+    public Task ShowShortcutsExternal()
+    {
+        showShortcuts = true;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable("OpenCmdK")]
+    public Task OpenCmdKFromJs()
+    {
+        cmdkOpen = true;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    void ShowShortcuts() { showShortcuts = true; menuOpen = false; }
+
+    async Task ToggleTheme()
+    {
+        Theme.Toggle();
+        try { await JS.InvokeVoidAsync("salone.setTheme", Theme.Theme); } catch { }
+    }
+
+    void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+        => Drawer.Close();
+
+    void ToggleMenu() => menuOpen = !menuOpen;
+    void CloseMenu() => menuOpen = false;
+
+    public void Dispose()
+    {
+        Layout.Changed -= StateHasChanged;
+        Theme.Changed -= StateHasChanged;
+        Drawer.Changed -= StateHasChanged;
+        Nav.LocationChanged -= OnLocationChanged;
+        selfRef?.Dispose();
+    }
+}

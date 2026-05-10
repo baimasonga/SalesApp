@@ -1,32 +1,45 @@
 @page "/sales"
 @rendermode InteractiveServer
 @inject SalesService SalesSvc
+@inject InventoryService Inv
+@inject LayoutState Layout
+@inject ToastService Toast
 @inject NavigationManager Nav
 
 <PageTitle>Sales</PageTitle>
 
 <div class="page-header">
-    <h1>Sales</h1>
-    <a class="btn btn-primary" href="/sales/new">+ New Sale</a>
+    <div class="actions">
+        <a class="btn" href="@CsvUrl" target="_blank"><i class="bi bi-download"></i> Export CSV</a>
+        <a class="btn btn-primary" href="/sales/new"><i class="bi bi-plus-lg"></i> New Sale</a>
+    </div>
 </div>
 
-@if (sales == null)
-{
-    <p>Loading…</p>
-}
+<div class="filter-bar">
+    <label>From<input type="date" @bind="from" @bind:after="Reload" /></label>
+    <label>To<input type="date" @bind="to" @bind:after="Reload" /></label>
+    <label>Store
+        <select @bind="storeId" @bind:after="Reload">
+            <option value="0">All stores</option>
+            @if (stores != null) { @foreach (var s in stores) { <option value="@s.Id">@s.Name</option> } }
+        </select>
+    </label>
+    <button class="btn btn-ghost" @onclick="ClearFilters"><i class="bi bi-x-lg"></i> Clear</button>
+</div>
+
+@if (sales == null) { <p class="muted">Loading…</p> }
 else if (!sales.Any())
 {
-    <p class="muted">No sales recorded yet.</p>
+    <div class="card empty-state">
+        <i class="bi bi-receipt"></i>
+        <p>No sales match these filters.</p>
+        <a class="btn btn-primary mt-2" href="/sales/new"><i class="bi bi-plus-lg"></i> Record first sale</a>
+    </div>
 }
 else
 {
     <table class="table">
-        <thead>
-            <tr>
-                <th>Invoice</th><th>Date</th><th>Store</th><th>Customer</th>
-                <th>Items</th><th>Payment</th><th>Status</th><th class="text-right">Total</th><th></th>
-            </tr>
-        </thead>
+        <thead><tr><th>Invoice</th><th>Date</th><th>Store</th><th>Customer</th><th>Items</th><th>Payment</th><th>Status</th><th class="text-right">Total</th><th></th></tr></thead>
         <tbody>
             @foreach (var s in sales)
             {
@@ -36,14 +49,18 @@ else
                     <td>@s.Store?.Name</td>
                     <td>@(s.Customer?.FullName ?? "Walk-in")</td>
                     <td>@s.Items.Count</td>
-                    <td>@s.PaymentMethod</td>
+                    <td>@s.PaymentMethod @(string.IsNullOrEmpty(s.TransactionReference) ? "" : "·")@s.TransactionReference</td>
                     <td><span class="status status-@s.Status.ToString().ToLower()">@s.Status</span></td>
-                    <td class="text-right">@Money.Format(s.Total)</td>
+                    <td class="text-right">@Money.Format(s.Total, s.Currency)</td>
                     <td>
-                        @if (s.Status == SaleStatus.Completed)
-                        {
-                            <button class="btn btn-sm btn-danger" @onclick="() => Cancel(s.Id)">Cancel</button>
-                        }
+                        <div class="btn-row">
+                            <a class="btn btn-sm" href="/sales/@s.Id/print" title="Print invoice"><i class="bi bi-printer"></i></a>
+                            @if (s.Status == SaleStatus.Completed)
+                            {
+                                <button class="btn btn-sm" @onclick="() => OpenRefund(s)" title="Refund"><i class="bi bi-arrow-counterclockwise"></i></button>
+                                <button class="btn btn-sm btn-danger" @onclick="() => Cancel(s.Id)" title="Cancel"><i class="bi bi-x-lg"></i></button>
+                            }
+                        </div>
                     </td>
                 </tr>
             }
@@ -51,14 +68,77 @@ else
     </table>
 }
 
+@if (refundFor != null)
+{
+    <div class="modal-backdrop" @onclick="() => refundFor = null"></div>
+    <div class="modal">
+        <h3>Refund @refundFor.InvoiceNumber</h3>
+        <p>This will mark the sale as refunded and return items to stock.</p>
+        <div class="form-row"><label>Reason</label><textarea rows="3" @bind="refundReason"></textarea></div>
+        <div class="modal-actions">
+            <button class="btn" @onclick="() => refundFor = null">Cancel</button>
+            <button class="btn btn-danger" @onclick="ConfirmRefund">Refund @Money.Format(refundFor.Total, refundFor.Currency)</button>
+        </div>
+    </div>
+}
+
 @code {
     List<Sale>? sales;
+    List<Store>? stores;
+    DateTime? from;
+    DateTime? to;
+    int storeId = 0;
+    Sale? refundFor;
+    string refundReason = "";
 
-    protected override async Task OnInitializedAsync() => sales = await SalesSvc.GetRecentAsync(100);
+    string CsvUrl
+    {
+        get
+        {
+            var qs = new List<string>();
+            if (from.HasValue) qs.Add($"from={from:yyyy-MM-dd}");
+            if (to.HasValue) qs.Add($"to={to:yyyy-MM-dd}");
+            if (storeId > 0) qs.Add($"storeId={storeId}");
+            return "/export/sales.csv" + (qs.Any() ? "?" + string.Join("&", qs) : "");
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Layout.Set("Sales", "All transactions across stores");
+        stores = await Inv.GetStoresAsync();
+        await Reload();
+    }
+
+    async Task Reload()
+    {
+        sales = await SalesSvc.GetRecentAsync(200, from, to, storeId == 0 ? null : storeId);
+    }
+
+    async Task ClearFilters()
+    {
+        from = null; to = null; storeId = 0;
+        await Reload();
+    }
 
     async Task Cancel(int id)
     {
-        await SalesSvc.CancelAsync(id);
-        sales = await SalesSvc.GetRecentAsync(100);
+        try { await SalesSvc.CancelAsync(id, "Cancelled from sales list"); Toast.Warning("Sale cancelled and stock restored."); await Reload(); }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+    }
+
+    void OpenRefund(Sale s) { refundFor = s; refundReason = ""; }
+
+    async Task ConfirmRefund()
+    {
+        if (refundFor == null) return;
+        try
+        {
+            await SalesSvc.RefundAsync(refundFor.Id, refundReason);
+            Toast.Success($"Refund processed for {refundFor.InvoiceNumber}.");
+            refundFor = null;
+            await Reload();
+        }
+        catch (Exception ex) { Toast.Error(ex.Message); }
     }
 }

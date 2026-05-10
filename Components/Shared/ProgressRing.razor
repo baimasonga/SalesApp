@@ -1,0 +1,36 @@
+@{
+    var pct = (double)Math.Clamp(Percent, 0m, 100m);
+    var r = 32.0;
+    var c = 2 * Math.PI * r;
+    var offset = c * (1 - pct / 100.0);
+    var color = pct >= 100 ? "#10b981" : pct >= 75 ? "#0ea5e9" : pct >= 50 ? "#f59e0b" : "#ef4444";
+}
+<div class="ring" style="--ring-size: @(Size)px">
+    <svg viewBox="0 0 80 80" width="@Size" height="@Size">
+        <circle cx="40" cy="40" r="32" fill="none" stroke="var(--surface-3)" stroke-width="6" />
+        <circle cx="40" cy="40" r="32" fill="none" stroke="@color" stroke-width="6"
+                stroke-dasharray="@c.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)"
+                stroke-dashoffset="@offset.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)"
+                stroke-linecap="round"
+                transform="rotate(-90 40 40)"
+                style="transition: stroke-dashoffset .5s ease, stroke .3s;" />
+    </svg>
+    <div class="ring-label">@Label</div>
+</div>
+
+<style>
+    .ring { position: relative; display: inline-flex; align-items: center; justify-content: center; }
+    .ring-label {
+        position: absolute; inset: 0;
+        display: flex; align-items: center; justify-content: center;
+        font-weight: 700; font-size: calc(var(--ring-size, 80px) * .22);
+        color: var(--text); font-variant-numeric: tabular-nums;
+        letter-spacing: -.02em;
+    }
+</style>
+
+@code {
+    [Parameter] public decimal Percent { get; set; }
+    [Parameter] public int Size { get; set; } = 80;
+    [Parameter] public string Label { get; set; } = "";
+}

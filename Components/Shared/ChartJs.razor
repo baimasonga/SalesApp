@@ -1,0 +1,50 @@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div class="chartjs-wrap" style="height:@(Height)px">
+    <canvas @ref="canvasRef"></canvas>
+</div>
+
+@code {
+    [Parameter] public List<SeriesPoint>? Points { get; set; }
+    [Parameter] public string Type { get; set; } = "bar"; // bar | line | doughnut
+    [Parameter] public string Color { get; set; } = "#0072c6";
+    [Parameter] public int Height { get; set; } = 240;
+    [Parameter] public bool Currency { get; set; } = true;
+
+    ElementReference canvasRef;
+    string? chartId;
+    bool created;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Points == null) return;
+        try
+        {
+            if (!created)
+            {
+                chartId = await JS.InvokeAsync<string?>("salone.createChart",
+                    canvasRef, Type,
+                    Points.Select(p => p.Label),
+                    Points.Select(p => (double)p.Value),
+                    Color, Currency);
+                created = true;
+            }
+            else if (chartId != null)
+            {
+                await JS.InvokeVoidAsync("salone.updateChart", chartId,
+                    Points.Select(p => p.Label),
+                    Points.Select(p => (double)p.Value));
+            }
+        }
+        catch { /* JS not ready / SSR */ }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (chartId != null)
+        {
+            try { await JS.InvokeVoidAsync("salone.destroyChart", chartId); } catch { }
+        }
+    }
+}

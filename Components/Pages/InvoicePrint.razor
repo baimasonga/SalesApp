@@ -1,0 +1,116 @@
+@page "/sales/{Id:int}/print"
+@rendermode InteractiveServer
+@inject SalesService SalesSvc
+
+@if (sale == null)
+{
+    <p>Loading…</p>
+}
+else
+{
+    <PageTitle>@sale.InvoiceNumber</PageTitle>
+
+    <div class="no-print" style="margin-bottom:1rem">
+        <button class="btn btn-primary" onclick="window.print()">🖨️ Print</button>
+        <a class="btn" href="/sales">← Back</a>
+    </div>
+
+    <div class="invoice">
+        <div class="invoice-header">
+            <div>
+                <h1>🇸🇱 Salone Sales</h1>
+                <p>@sale.Store?.Name<br />
+                @sale.Store?.Location, @sale.Store?.District<br />
+                Tel: @sale.Store?.Phone</p>
+            </div>
+            <div class="invoice-meta">
+                <h2>INVOICE</h2>
+                <p><strong>No:</strong> @sale.InvoiceNumber</p>
+                <p><strong>Date:</strong> @sale.SaleDate.ToString("dd MMM yyyy HH:mm")</p>
+                <p><strong>Status:</strong> @sale.Status</p>
+            </div>
+        </div>
+
+        <div class="invoice-bill">
+            <h3>Bill to</h3>
+            <p><strong>@(sale.Customer?.FullName ?? "Walk-in Customer")</strong></p>
+            @if (sale.Customer != null)
+            {
+                <p>@sale.Customer.BusinessName<br />
+                @sale.Customer.Phone<br />
+                @sale.Customer.Address @sale.Customer.District</p>
+            }
+        </div>
+
+        <table class="invoice-table">
+            <thead>
+                <tr><th>#</th><th>Description</th><th>Qty</th><th class="text-right">Unit Price</th><th class="text-right">Amount</th></tr>
+            </thead>
+            <tbody>
+                @{ int n = 1; }
+                @foreach (var item in sale.Items)
+                {
+                    <tr>
+                        <td>@(n++)</td>
+                        <td>@item.ProductName</td>
+                        <td>@item.Quantity</td>
+                        <td class="text-right">@Money.Format(item.UnitPrice, sale.Currency)</td>
+                        <td class="text-right">@Money.Format(item.LineTotal, sale.Currency)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        <div class="invoice-totals">
+            <div><span>Subtotal</span><span>@Money.Format(sale.Subtotal, sale.Currency)</span></div>
+            <div><span>GST (15%)</span><span>@Money.Format(sale.Tax, sale.Currency)</span></div>
+            @if (sale.Discount > 0)
+            {
+                <div><span>Discount</span><span>− @Money.Format(sale.Discount, sale.Currency)</span></div>
+            }
+            <div class="grand"><span>TOTAL</span><span>@Money.Format(sale.Total, sale.Currency)</span></div>
+        </div>
+
+        <div class="invoice-footer">
+            <p><strong>Payment:</strong> @sale.PaymentMethod
+                @if (!string.IsNullOrEmpty(sale.TransactionReference)) { <span> · Ref: @sale.TransactionReference</span> }
+            </p>
+            <p><strong>Cashier:</strong> @sale.CashierName</p>
+            @if (!string.IsNullOrEmpty(sale.Notes)) { <p><em>@sale.Notes</em></p> }
+            <p class="thanks">Tenki — thank you for your business!</p>
+        </div>
+    </div>
+}
+
+<style>
+    .invoice { background: white; padding: 2rem; max-width: 800px; margin: 0 auto;
+        box-shadow: 0 1px 4px rgba(0,0,0,.08); border-radius: 8px; }
+    .invoice-header { display: flex; justify-content: space-between; border-bottom: 3px solid var(--sl-blue); padding-bottom: 1rem; }
+    .invoice-header h1 { color: var(--sl-blue); margin: 0 0 .5rem; }
+    .invoice-meta { text-align: right; }
+    .invoice-meta h2 { color: var(--sl-green); margin: 0; letter-spacing: 2px; }
+    .invoice-bill { margin: 1.5rem 0; }
+    .invoice-table { width: 100%; border-collapse: collapse; margin: 1.5rem 0; }
+    .invoice-table th { background: #f3f4f6; text-align: left; padding: .6rem; font-size: .85rem; }
+    .invoice-table td { padding: .55rem .6rem; border-bottom: 1px solid #e5e7eb; }
+    .invoice-totals { margin-left: auto; width: 320px; }
+    .invoice-totals > div { display: flex; justify-content: space-between; padding: .35rem 0; border-bottom: 1px dashed #e5e7eb; }
+    .invoice-totals .grand { font-size: 1.2rem; font-weight: 700; border-top: 2px solid var(--text); border-bottom: 2px solid var(--text); margin-top: .5rem; padding: .6rem 0; }
+    .invoice-totals .grand span:last-child { color: var(--sl-green); }
+    .invoice-footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #e5e7eb; }
+    .thanks { text-align: center; font-style: italic; margin-top: 1.5rem; color: var(--sl-blue); }
+
+    @@media print {
+        .no-print, .sidebar, nav { display: none !important; }
+        .invoice { box-shadow: none; }
+        body { background: white; }
+        main { padding: 0 !important; }
+    }
+</style>
+
+@code {
+    [Parameter] public int Id { get; set; }
+    Sale? sale;
+
+    protected override async Task OnParametersSetAsync() => sale = await SalesSvc.GetAsync(Id);
+}

@@ -1,43 +1,147 @@
-<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">🇸🇱 Salone Sales</a>
+@implements IDisposable
+@inject NavigationManager Nav
+
+<a href="/" class="brand">
+    <div class="brand-mark" aria-hidden="true">
+        <span class="brand-stripe stripe-1"></span>
+        <span class="brand-stripe stripe-2"></span>
+        <span class="brand-stripe stripe-3"></span>
+    </div>
+    <span class="brand-name">Salone Sales</span>
+</a>
+
+<div class="nav-search">
+    <i class="bi bi-search"></i>
+    <input type="search" placeholder="Find page…" @bind="filter" @bind:event="oninput" />
+    @if (!string.IsNullOrEmpty(filter))
+    {
+        <button class="nav-search-clear" @onclick="@(() => filter = "")" aria-label="Clear">
+            <i class="bi bi-x"></i>
+        </button>
+    }
+</div>
+
+<nav class="nav">
+    @foreach (var sec in Sections)
+    {
+        var visibleItems = sec.Items.Where(i => Matches(i)).ToArray();
+        if (visibleItems.Length == 0) continue;
+
+        if (sec.Label != null)
+        {
+            <div class="nav-section">@sec.Label</div>
+        }
+        @foreach (var item in visibleItems)
+        {
+            <a href="@item.Href" class="nav-item @(IsActive(item.Href) ? "active" : "")">
+                <i class="bi @item.Icon"></i>
+                <span>@item.Label</span>
+                @if (item.Badge is not null)
+                {
+                    <span class="nav-badge">@item.Badge</span>
+                }
+            </a>
+        }
+    }
+
+    @if (Sections.SelectMany(s => s.Items).All(i => !Matches(i)))
+    {
+        <div class="nav-empty">
+            <i class="bi bi-emoji-frown"></i>
+            No results
+        </div>
+    }
+</nav>
+
+<div class="nav-footer">
+    <div class="tenant-chip">
+        <div class="tenant-dot"></div>
+        <div class="tenant-meta">
+            <strong>Demo Business</strong>
+            <small>NLe · Sierra Leone</small>
+        </div>
     </div>
 </div>
 
-<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+@code {
+    record NavItem(string Label, string Href, string Icon, string? Badge = null);
+    record NavSection(string? Label, NavItem[] Items);
 
-<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
-    <nav class="flex-column">
-        <div class="nav-section">Overview</div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">📊 Dashboard</NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="reports">📈 Reports & Analytics</NavLink>
-        </div>
+    static readonly NavSection[] Sections = new[]
+    {
+        new NavSection(null, new[]
+        {
+            new NavItem("Dashboard",   "/",         "bi-grid-1x2-fill"),
+            new NavItem("Reports",     "/reports",  "bi-graph-up-arrow"),
+            new NavItem("Targets",     "/targets",  "bi-bullseye"),
+        }),
+        new NavSection("Sales", new[]
+        {
+            new NavItem("All Sales",   "/sales",       "bi-receipt"),
+            new NavItem("New Sale",    "/sales/new",   "bi-plus-circle"),
+            new NavItem("Quotations",  "/quotations",  "bi-file-earmark-text"),
+            new NavItem("Layaways",    "/layaways",    "bi-piggy-bank"),
+        }),
+        new NavSection("Inventory", new[]
+        {
+            new NavItem("Products",      "/products",    "bi-tag"),
+            new NavItem("Stock Levels",  "/inventory",   "bi-box-seam"),
+            new NavItem("Reorder",       "/reorder",     "bi-exclamation-triangle"),
+            new NavItem("Stock Take",    "/stock-take",  "bi-list-check"),
+            new NavItem("Transfers",     "/transfers",   "bi-arrow-left-right"),
+        }),
+        new NavSection("Procurement", new[]
+        {
+            new NavItem("Suppliers",        "/suppliers",        "bi-building"),
+            new NavItem("Purchase Orders",  "/purchase-orders",  "bi-cart3"),
+        }),
+        new NavSection("CRM", new[]
+        {
+            new NavItem("Customers", "/customers", "bi-people"),
+        }),
+        new NavSection("Finance & HR", new[]
+        {
+            new NavItem("Expenses",     "/expenses",     "bi-cash-stack"),
+            new NavItem("Employees",    "/employees",    "bi-person-badge"),
+            new NavItem("Shifts",       "/shifts",       "bi-clock-history"),
+            new NavItem("Commissions",  "/commissions",  "bi-cash-coin"),
+        }),
+        new NavSection("Admin", new[]
+        {
+            new NavItem("Stores",     "/stores", "bi-shop"),
+            new NavItem("Audit Log",  "/audit",  "bi-shield-check"),
+        }),
+    };
 
-        <div class="nav-section">Sales</div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="sales">🧾 Sales</NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="sales/new">➕ New Sale</NavLink>
-        </div>
+    string filter = "";
+    string currentUri = "";
 
-        <div class="nav-section">Stores</div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="stores">🏬 Stores</NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="products">📦 Products</NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="inventory">📋 Inventory</NavLink>
-        </div>
+    protected override void OnInitialized()
+    {
+        currentUri = Nav.Uri;
+        Nav.LocationChanged += OnLocationChanged;
+    }
 
-        <div class="nav-section">CRM</div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="customers">👥 Customers</NavLink>
-        </div>
-    </nav>
-</div>
+    void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        currentUri = e.Location;
+        StateHasChanged();
+    }
+
+    bool Matches(NavItem item)
+    {
+        if (string.IsNullOrWhiteSpace(filter)) return true;
+        var f = filter.Trim();
+        return item.Label.Contains(f, StringComparison.OrdinalIgnoreCase);
+    }
+
+    bool IsActive(string href)
+    {
+        var path = new Uri(currentUri).AbsolutePath.TrimEnd('/');
+        var target = href.TrimEnd('/');
+        if (target == "") return path == "" || path == "/";
+        return path == target || path.StartsWith(target + "/");
+    }
+
+    public void Dispose() => Nav.LocationChanged -= OnLocationChanged;
+}

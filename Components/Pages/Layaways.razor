@@ -1,0 +1,166 @@
+@page "/layaways"
+@rendermode InteractiveServer
+@inject LayawayService Lay
+@inject CrmService Crm
+@inject InventoryService Inv
+@inject CurrentUserService User
+@inject LayoutState Layout
+@inject ToastService Toast
+
+<PageTitle>Layaways</PageTitle>
+
+<div class="page-header">
+    <div class="actions">
+        <button class="btn btn-primary" @onclick="OpenNew"><i class="bi bi-plus-lg"></i> New Layaway</button>
+    </div>
+</div>
+
+@if (layaways == null) { <Skeleton Height="200" /> }
+else if (!layaways.Any())
+{
+    <EmptyState Icon="bi-piggy-bank" Title="No layaways yet" Description="Let customers reserve items with a deposit, then add payments until the balance is cleared.">
+        <Actions>
+            <button class="btn btn-primary" @onclick="OpenNew"><i class="bi bi-plus-lg"></i> New layaway</button>
+        </Actions>
+    </EmptyState>
+}
+else
+{
+    <table class="table">
+        <thead><tr><th>Number</th><th>Customer</th><th>Started</th><th class="text-right">Total</th><th class="text-right">Paid</th><th class="text-right">Balance</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+            @foreach (var l in layaways)
+            {
+                <tr>
+                    <td><strong>@l.LayawayNumber</strong></td>
+                    <td>@l.Customer?.FullName</td>
+                    <td>@l.StartDate.ToString("dd MMM yyyy")</td>
+                    <td class="text-right">@Money.Format(l.TotalAmount)</td>
+                    <td class="text-right">@Money.Format(l.AmountPaid)</td>
+                    <td class="text-right"><strong>@Money.Format(l.Balance)</strong></td>
+                    <td><span class="status status-@l.Status.ToString().ToLower()">@l.Status</span></td>
+                    <td>
+                        <div class="btn-row">
+                            @if (l.Status == LayawayStatus.Active)
+                            {
+                                <button class="btn btn-sm btn-success" @onclick="() => OpenPay(l)" title="Add payment"><i class="bi bi-cash"></i> Pay</button>
+                                <button class="btn btn-sm btn-danger" @onclick="() => Cancel(l.Id)" title="Cancel"><i class="bi bi-x"></i></button>
+                            }
+                        </div>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (showNew)
+{
+    <div class="modal-backdrop" @onclick="() => showNew = false"></div>
+    <div class="modal">
+        <h3>New Layaway</h3>
+        <div class="form-row"><label>Customer</label>
+            <select @bind="newL.CustomerId">
+                <option value="0">— Choose —</option>
+                @if (customers != null) { @foreach (var c in customers) { <option value="@c.Id">@c.FullName</option> } }
+            </select>
+        </div>
+        <div class="form-row"><label>Store</label>
+            <select @bind="newL.StoreId">
+                @if (stores != null) { @foreach (var s in stores) { <option value="@s.Id">@s.Name</option> } }
+            </select>
+        </div>
+        <div class="form-row"><label>Description</label><input @bind="newL.Description" /></div>
+        <div class="form-row"><label>Total Amount (NLe)</label><input type="number" step="0.01" @bind="newL.TotalAmount" /></div>
+        <div class="form-row"><label>Initial Deposit</label><input type="number" step="0.01" @bind="initialDeposit" /></div>
+        <div class="modal-actions">
+            <button class="btn" @onclick="() => showNew = false">Cancel</button>
+            <button class="btn btn-primary" @onclick="CreateNew">Create</button>
+        </div>
+    </div>
+}
+
+@if (paying != null)
+{
+    <div class="modal-backdrop" @onclick="() => paying = null"></div>
+    <div class="modal">
+        <h3>Payment for @paying.LayawayNumber</h3>
+        <p class="muted">Balance: @Money.Format(paying.Balance)</p>
+        <div class="form-row"><label>Amount</label><input type="number" step="0.01" @bind="payAmount" /></div>
+        <div class="form-row"><label>Method</label>
+            <select @bind="payMethod">
+                @foreach (var p in Enum.GetValues<PaymentMethod>()) { <option value="@p">@p</option> }
+            </select>
+        </div>
+        <div class="form-row"><label>Reference</label><input @bind="payRef" placeholder="Mobile money / bank ref" /></div>
+        <div class="modal-actions">
+            <button class="btn" @onclick="() => paying = null">Cancel</button>
+            <button class="btn btn-success" @onclick="DoPayment">Record Payment</button>
+        </div>
+    </div>
+}
+
+@code {
+    List<Layaway>? layaways;
+    List<Customer>? customers;
+    List<Store>? stores;
+    Layaway newL = new();
+    bool showNew;
+    decimal initialDeposit;
+
+    Layaway? paying;
+    decimal payAmount;
+    PaymentMethod payMethod = PaymentMethod.Cash;
+    string? payRef;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Layout.Set("Layaways", "Installment payments and reservations");
+        await Reload();
+        customers = await Crm.GetCustomersAsync();
+        stores = await Inv.GetStoresAsync();
+    }
+
+    async Task Reload() => layaways = await Lay.GetAllAsync();
+
+    void OpenNew()
+    {
+        newL = new Layaway { StartDate = DateTime.UtcNow };
+        if (stores?.Any() == true) newL.StoreId = stores.First().Id;
+        initialDeposit = 0;
+        showNew = true;
+    }
+
+    async Task CreateNew()
+    {
+        if (newL.CustomerId == 0 || newL.TotalAmount <= 0) { Toast.Warning("Customer and total are required."); return; }
+        var id = await Lay.CreateAsync(newL);
+        if (initialDeposit > 0)
+            await Lay.AddPaymentAsync(id, new LayawayPayment { Amount = initialDeposit, Method = PaymentMethod.Cash, ReceivedBy = User.UserName });
+        Toast.Success("Layaway created.");
+        showNew = false;
+        await Reload();
+    }
+
+    void OpenPay(Layaway l) { paying = l; payAmount = l.Balance; payMethod = PaymentMethod.Cash; payRef = null; }
+
+    async Task DoPayment()
+    {
+        if (paying == null || payAmount <= 0) { Toast.Warning("Enter a positive amount."); return; }
+        try
+        {
+            await Lay.AddPaymentAsync(paying.Id, new LayawayPayment
+            { Amount = payAmount, Method = payMethod, Reference = payRef, ReceivedBy = User.UserName });
+            Toast.Success("Payment recorded.");
+            paying = null;
+            await Reload();
+        }
+        catch (Exception ex) { Toast.Error($"Save failed: {ex.Message}"); }
+    }
+
+    async Task Cancel(int id)
+    {
+        try { await Lay.CancelAsync(id); Toast.Warning("Layaway cancelled."); await Reload(); }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+    }
+}

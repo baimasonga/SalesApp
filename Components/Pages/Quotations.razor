@@ -1,0 +1,184 @@
+@page "/quotations"
+@rendermode InteractiveServer
+@inject QuotationService Q
+@inject InventoryService Inv
+@inject CrmService Crm
+@inject LayoutState Layout
+@inject NavigationManager Nav
+
+<PageTitle>Quotations</PageTitle>
+
+<div class="page-header">
+    <div class="actions">
+        <button class="btn btn-primary" @onclick="OpenNew"><i class="bi bi-plus-lg"></i> New Quote</button>
+    </div>
+</div>
+
+@if (quotes == null) { <Skeleton Height="200" /> }
+else if (!quotes.Any())
+{
+    <EmptyState Icon="bi-file-earmark-text" Title="No quotations yet" Description="Send a quote to a customer; once accepted, convert it to a sale with one click.">
+        <Actions>
+            <button class="btn btn-primary" @onclick="OpenNew"><i class="bi bi-plus-lg"></i> New quote</button>
+        </Actions>
+    </EmptyState>
+}
+else
+{
+    <table class="table">
+        <thead><tr><th>Quote #</th><th>Date</th><th>Customer</th><th>Valid Until</th><th class="text-right">Total</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+            @foreach (var q in quotes)
+            {
+                <tr>
+                    <td><strong>@q.QuoteNumber</strong></td>
+                    <td>@q.QuoteDate.ToString("dd MMM yyyy")</td>
+                    <td>@q.Customer?.FullName</td>
+                    <td>@q.ValidUntil.ToString("dd MMM yyyy")</td>
+                    <td class="text-right">@Money.Format(q.Total)</td>
+                    <td><span class="status status-@q.Status.ToString().ToLower()">@q.Status</span></td>
+                    <td>
+                        <div class="row-actions">
+                            @if (q.Status == QuotationStatus.Draft || q.Status == QuotationStatus.Sent)
+                            {
+                                <button class="btn btn-sm btn-success" @onclick="() => SetStatus(q.Id, QuotationStatus.Accepted)" title="Mark accepted"><i class="bi bi-check"></i> Accept</button>
+                                <button class="btn btn-sm" @onclick="() => SetStatus(q.Id, QuotationStatus.Rejected)" title="Reject"><i class="bi bi-x"></i> Reject</button>
+                            }
+                            @if (q.Status == QuotationStatus.Accepted)
+                            {
+                                <button class="btn btn-sm btn-primary" @onclick="() => Convert(q.Id)" title="Convert to sale"><i class="bi bi-arrow-right-circle"></i> Convert</button>
+                            }
+                        </div>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (showNew)
+{
+    <div class="modal-backdrop" @onclick="() => showNew = false"></div>
+    <div class="modal" style="min-width: 640px;">
+        <h3>New Quotation</h3>
+        <div class="grid-2">
+            <div class="form-row"><label>Customer</label>
+                <select @bind="quote.CustomerId">
+                    <option value="0">— Choose —</option>
+                    @foreach (var c in customers!) { <option value="@c.Id">@c.FullName</option> }
+                </select>
+            </div>
+            <div class="form-row"><label>Store</label>
+                <select @bind="quote.StoreId">
+                    @foreach (var s in stores!) { <option value="@s.Id">@s.Name</option> }
+                </select>
+            </div>
+            <div class="form-row"><label>Valid Until</label><input type="date" @bind="quote.ValidUntil" /></div>
+            <div class="form-row"><label>Notes</label><textarea rows="2" @bind="quote.Notes"></textarea></div>
+        </div>
+
+        <h4>Add item</h4>
+        <div class="grid-2">
+            <div class="form-row"><label>Product</label>
+                <select @bind="selectedPid">
+                    <option value="0">— Choose —</option>
+                    @foreach (var p in products!) { <option value="@p.Id">@p.Name — @Money.Format(p.UnitPrice)</option> }
+                </select>
+            </div>
+            <div class="form-row"><label>Quantity</label><input type="number" min="1" @bind="qty" /></div>
+        </div>
+        <button class="btn" @onclick="AddItem">Add Item</button>
+
+        @if (quote.Items.Any())
+        {
+            <table class="table mt-3">
+                <thead><tr><th>Product</th><th>Qty</th><th class="text-right">Price</th><th class="text-right">Total</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var line in quote.Items)
+                    {
+                        <tr>
+                            <td>@line.ProductName</td>
+                            <td>@line.Quantity</td>
+                            <td class="text-right">@Money.Format(line.UnitPrice)</td>
+                            <td class="text-right">@Money.Format(line.LineTotal)</td>
+                            <td><button class="btn btn-sm btn-danger" @onclick="() => quote.Items.Remove(line)">×</button></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            <p class="text-right"><strong>Subtotal: @Money.Format(quote.Items.Sum(x => x.LineTotal))</strong> + GST 15%</p>
+        }
+
+        @if (!string.IsNullOrEmpty(error)) { <p class="error">@error</p> }
+        <div class="modal-actions">
+            <button class="btn" @onclick="() => showNew = false">Cancel</button>
+            <button class="btn btn-primary" @onclick="Save" disabled="@saving">@(saving ? "Saving…" : "Create")</button>
+        </div>
+    </div>
+}
+
+@code {
+    List<Quotation>? quotes;
+    List<Customer>? customers;
+    List<Store>? stores;
+    List<Product>? products;
+    Quotation quote = new();
+    int selectedPid; int qty = 1;
+    bool showNew, saving;
+    string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Layout.Set("Quotations", "Send quotes and convert to sales");
+        quotes = await Q.GetAllAsync();
+        customers = await Crm.GetCustomersAsync();
+        stores = await Inv.GetStoresAsync();
+        products = await Inv.GetProductsAsync();
+    }
+
+    void OpenNew()
+    {
+        quote = new Quotation { ValidUntil = DateTime.UtcNow.AddDays(30), Status = QuotationStatus.Sent };
+        if (stores!.Any()) quote.StoreId = stores.First().Id;
+        showNew = true; error = null;
+    }
+
+    void AddItem()
+    {
+        if (selectedPid == 0 || qty < 1) return;
+        var p = products!.First(x => x.Id == selectedPid);
+        quote.Items.Add(new QuotationItem
+        {
+            ProductId = p.Id, ProductName = p.Name,
+            Quantity = qty, UnitPrice = p.UnitPrice, LineTotal = qty * p.UnitPrice
+        });
+        selectedPid = 0; qty = 1;
+    }
+
+    async Task Save()
+    {
+        if (quote.CustomerId == 0) { error = "Select a customer."; return; }
+        if (!quote.Items.Any()) { error = "Add at least one item."; return; }
+        saving = true; error = null;
+        try
+        {
+            await Q.CreateAsync(quote);
+            showNew = false;
+            quotes = await Q.GetAllAsync();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { saving = false; }
+    }
+
+    async Task SetStatus(int id, QuotationStatus s)
+    {
+        await Q.SetStatusAsync(id, s);
+        quotes = await Q.GetAllAsync();
+    }
+
+    async Task Convert(int id)
+    {
+        var saleId = await Q.ConvertToSaleAsync(id);
+        Nav.NavigateTo($"/sales/{saleId}/print");
+    }
+}

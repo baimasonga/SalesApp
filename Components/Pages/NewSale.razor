@@ -3,125 +3,328 @@
 @inject SalesService SalesSvc
 @inject InventoryService Inv
 @inject CrmService Crm
+@inject CurrentUserService User
+@inject LayoutState Layout
+@inject ToastService Toast
 @inject NavigationManager Nav
 
 <PageTitle>New Sale</PageTitle>
 
-<div class="page-header">
-    <h1>New Sale</h1>
-    <a class="btn" href="/sales">← Back</a>
-</div>
-
 @if (products == null || stores == null || customers == null)
 {
-    <p>Loading…</p>
+    <p class="muted">Loading…</p>
 }
 else
 {
-    <div class="grid-2">
-        <div class="card">
-            <h3>Sale Details</h3>
-            <div class="form-row">
-                <label>Store</label>
-                <select @bind="sale.StoreId">
-                    @foreach (var s in stores) { <option value="@s.Id">@s.Name</option> }
-                </select>
-            </div>
-            <div class="form-row">
-                <label>Customer</label>
-                <select @bind="sale.CustomerId">
-                    <option value="">— Walk-in —</option>
-                    @foreach (var c in customers)
+    <div class="pos">
+        <!-- Catalogue pane -->
+        <section class="pos-catalogue">
+            <div class="pos-catalogue-head">
+                <div class="input-group flex-1">
+                    <i class="bi bi-search"></i>
+                    <input class="search" placeholder="Scan barcode, type SKU, or search products…"
+                           @bind="search" @bind:event="oninput" @onkeyup="HandleSearchEnter" />
+                </div>
+                <div class="segmented">
+                    <button class="@(activeCat == null ? "is-active" : "")" @onclick="@(() => activeCat = null)">All</button>
+                    @foreach (var c in Categories)
                     {
-                        <option value="@c.Id">@c.FullName @(string.IsNullOrEmpty(c.BusinessName) ? "" : $"({c.BusinessName})")</option>
+                        <button class="@(activeCat == c ? "is-active" : "")" @onclick="@(() => activeCat = c)">@c</button>
                     }
-                </select>
-            </div>
-            <div class="form-row">
-                <label>Cashier</label>
-                <input @bind="sale.CashierName" placeholder="Cashier name" />
-            </div>
-            <div class="form-row">
-                <label>Payment Method</label>
-                <select @bind="sale.PaymentMethod">
-                    @foreach (var pm in Enum.GetValues<PaymentMethod>()) { <option value="@pm">@pm</option> }
-                </select>
-            </div>
-            <div class="form-row">
-                <label>Notes</label>
-                <textarea @bind="sale.Notes" rows="2"></textarea>
+                </div>
             </div>
 
-            <h3 class="mt-3">Add Item</h3>
-            <div class="form-row">
-                <label>Product</label>
-                <select @bind="selectedProductId">
-                    <option value="0">— Choose product —</option>
-                    @foreach (var p in products)
-                    {
-                        <option value="@p.Id">@p.Name — @Money.Format(p.UnitPrice)</option>
-                    }
-                </select>
-            </div>
-            <div class="form-row">
-                <label>Quantity</label>
-                <input type="number" min="1" @bind="qty" />
-            </div>
-            <button class="btn btn-primary" @onclick="AddItem">Add Item</button>
-        </div>
-
-        <div class="card">
-            <h3>Cart</h3>
-            @if (!sale.Items.Any())
+            @if (!FilteredProducts.Any())
             {
-                <p class="muted">No items added.</p>
+                <EmptyState Icon="bi-search" Title="Nothing matched" Description="Try clearing search or pick a different category." />
             }
             else
             {
-                <table class="table">
-                    <thead><tr><th>Product</th><th>Qty</th><th class="text-right">Price</th><th class="text-right">Total</th><th></th></tr></thead>
-                    <tbody>
-                        @foreach (var line in sale.Items)
-                        {
-                            <tr>
-                                <td>@line.ProductName</td>
-                                <td>@line.Quantity</td>
-                                <td class="text-right">@Money.Format(line.UnitPrice)</td>
-                                <td class="text-right">@Money.Format(line.LineTotal)</td>
-                                <td><button class="btn btn-sm btn-danger" @onclick="() => Remove(line)">×</button></td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-
-                <div class="totals">
-                    <div><span>Subtotal</span><strong>@Money.Format(Subtotal)</strong></div>
-                    <div><span>GST (15%)</span><strong>@Money.Format(Tax)</strong></div>
-                    <div><span>Discount</span>
-                        <input type="number" min="0" step="0.01" @bind="sale.Discount" style="width:120px" />
-                    </div>
-                    <div class="total-grand"><span>TOTAL</span><strong>@Money.Format(Total)</strong></div>
+                <div class="product-grid">
+                    @foreach (var p in FilteredProducts)
+                    {
+                        <button class="product-card" @onclick="() => AddProduct(p)" type="button">
+                            <div class="product-icon" style="background: @ColorFor(p.Category);">
+                                <i class="bi @IconFor(p.Category)"></i>
+                            </div>
+                            <div class="product-name">@p.Name</div>
+                            <div class="product-meta">
+                                <code>@p.Sku</code>
+                                <strong>@Money.Format(p.UnitPrice)</strong>
+                            </div>
+                        </button>
+                    }
                 </div>
-
-                <button class="btn btn-success btn-lg" @onclick="Save" disabled="@saving">
-                    @(saving ? "Saving…" : "Complete Sale")
-                </button>
-                @if (!string.IsNullOrEmpty(error))
-                {
-                    <p class="error">@error</p>
-                }
             }
-        </div>
+        </section>
+
+        <!-- Cart pane -->
+        <aside class="pos-cart">
+            <div class="pos-cart-head">
+                <div>
+                    <h3 style="margin:0">Cart</h3>
+                    <p class="muted text-xs mb-0">@sale.Items.Count item@(sale.Items.Count == 1 ? "" : "s")</p>
+                </div>
+                @if (sale.Items.Any())
+                {
+                    <button class="btn btn-ghost btn-sm" @onclick="ClearCart"><i class="bi bi-trash"></i> Clear</button>
+                }
+            </div>
+
+            <div class="pos-cart-meta">
+                <div class="form-row" style="margin: 0;">
+                    <label>Customer</label>
+                    <select @bind="sale.CustomerId">
+                        <option value="">Walk-in customer</option>
+                        @foreach (var c in customers) { <option value="@c.Id">@c.FullName @(string.IsNullOrEmpty(c.BusinessName) ? "" : $"({c.BusinessName})")</option> }
+                    </select>
+                </div>
+                <div class="form-row" style="margin: 0;">
+                    <label>Store</label>
+                    <select @bind="sale.StoreId">
+                        @foreach (var s in stores) { <option value="@s.Id">@s.Name</option> }
+                    </select>
+                </div>
+            </div>
+
+            <div class="pos-cart-items">
+                @if (!sale.Items.Any())
+                {
+                    <EmptyState Icon="bi-cart" Title="Your cart is empty" Description="Tap a product on the left to add it." />
+                }
+                else
+                {
+                    @foreach (var line in sale.Items)
+                    {
+                        <div class="cart-line">
+                            <div class="cart-line-info">
+                                <strong>@line.ProductName</strong>
+                                <span class="muted text-xs">@Money.Format(line.UnitPrice) each</span>
+                            </div>
+                            <div class="qty-stepper">
+                                <button class="btn btn-icon btn-sm" @onclick="() => Step(line, -1)"><i class="bi bi-dash"></i></button>
+                                <span class="qty-display">@line.Quantity</span>
+                                <button class="btn btn-icon btn-sm" @onclick="() => Step(line, 1)"><i class="bi bi-plus"></i></button>
+                            </div>
+                            <div class="cart-line-total">
+                                <strong>@Money.Format(line.LineTotal)</strong>
+                                <button class="btn btn-ghost btn-sm" @onclick="() => sale.Items.Remove(line)" title="Remove"><i class="bi bi-x"></i></button>
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+
+            @if (sale.Items.Any())
+            {
+                <div class="pos-cart-foot">
+                    <div class="pos-totals">
+                        <div><span class="muted">Subtotal</span><strong>@Money.Format(Subtotal, sale.Currency)</strong></div>
+                        <div><span class="muted">GST 15%</span><strong>@Money.Format(Tax, sale.Currency)</strong></div>
+                        <div>
+                            <span class="muted">Discount</span>
+                            <input type="number" min="0" step="0.01" @bind="sale.Discount" class="discount-input" />
+                        </div>
+                        <div class="total-line">
+                            <span>Total</span>
+                            <span class="total-amount">@Money.Format(Total, sale.Currency)</span>
+                        </div>
+                    </div>
+
+                    <div class="pos-payment">
+                        <label class="text-xs muted">Payment method</label>
+                        <div class="payment-grid">
+                            @foreach (var pm in Enum.GetValues<PaymentMethod>())
+                            {
+                                <button class="pay-card @(sale.PaymentMethod == pm ? "active" : "")" type="button" @onclick="() => sale.PaymentMethod = pm">
+                                    <i class="bi @PayIcon(pm)"></i>
+                                    <span>@pm</span>
+                                </button>
+                            }
+                        </div>
+
+                        @if (sale.PaymentMethod is PaymentMethod.MobileMoney or PaymentMethod.BankTransfer or PaymentMethod.Card)
+                        {
+                            <div class="form-row mt-2" style="margin: .5rem 0 0;">
+                                <input @bind="sale.TransactionReference" placeholder="Transaction reference (e.g. Orange Money TxnID)" />
+                            </div>
+                        }
+                    </div>
+
+                    <button class="btn btn-success btn-lg btn-block mt-3" @onclick="Save" disabled="@saving">
+                        @if (saving)
+                        {
+                            <span><i class="bi bi-arrow-clockwise"></i> Saving…</span>
+                        }
+                        else
+                        {
+                            <span><i class="bi bi-check-circle"></i> Complete sale · @Money.Format(Total, sale.Currency)</span>
+                        }
+                    </button>
+                    @if (!string.IsNullOrEmpty(error)) { <p class="error">@error</p> }
+                </div>
+            }
+        </aside>
     </div>
 }
 
+<style>
+    .pos {
+        display: grid;
+        grid-template-columns: 1fr 420px;
+        gap: 1rem;
+        height: calc(100vh - 64px - 3.5rem);
+        min-height: 600px;
+    }
+    @@media (max-width: 1100px) { .pos { grid-template-columns: 1fr; height: auto; } }
+
+    .pos-catalogue {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-xl);
+        padding: 1rem;
+        display: flex; flex-direction: column;
+        gap: 1rem;
+        overflow: hidden;
+    }
+    .pos-catalogue-head {
+        display: flex; gap: .75rem;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    .product-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: .75rem;
+        overflow-y: auto;
+        padding-right: .25rem;
+    }
+    .product-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: .85rem;
+        cursor: pointer;
+        font: inherit;
+        text-align: left;
+        display: flex; flex-direction: column;
+        gap: .5rem;
+        transition: all var(--transition);
+    }
+    .product-card:hover {
+        border-color: var(--brand);
+        background: var(--brand-50);
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-md);
+    }
+    .product-card:active { transform: translateY(0); }
+    .product-icon {
+        width: 40px; height: 40px;
+        border-radius: var(--radius);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 1.1rem; color: white;
+    }
+    .product-name {
+        font-size: .82rem; font-weight: 500; color: var(--text);
+        line-height: 1.3;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    .product-meta {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: .5rem;
+        margin-top: auto;
+    }
+    .product-meta code { font-size: .65rem; padding: 0 4px; }
+    .product-meta strong { font-size: .85rem; color: var(--brand-700); font-variant-numeric: tabular-nums; }
+
+    /* Cart */
+    .pos-cart {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-xl);
+        display: flex; flex-direction: column;
+        overflow: hidden;
+    }
+    .pos-cart-head {
+        padding: 1rem 1.1rem;
+        display: flex; justify-content: space-between; align-items: center;
+        border-bottom: 1px solid var(--border);
+    }
+    .pos-cart-meta {
+        padding: 1rem 1.1rem;
+        display: flex; flex-direction: column; gap: .65rem;
+        border-bottom: 1px solid var(--border);
+        background: var(--surface-2);
+    }
+    .pos-cart-items {
+        flex: 1;
+        overflow-y: auto;
+        padding: .5rem .75rem;
+    }
+    .cart-line {
+        display: grid;
+        grid-template-columns: 1fr auto auto;
+        align-items: center;
+        gap: .65rem;
+        padding: .65rem .35rem;
+        border-bottom: 1px solid var(--border);
+    }
+    .cart-line:last-child { border-bottom: none; }
+    .cart-line-info { display: flex; flex-direction: column; min-width: 0; }
+    .cart-line-info strong { font-size: .82rem; font-weight: 500; }
+    .qty-stepper { display: flex; align-items: center; gap: .35rem; }
+    .qty-display {
+        min-width: 24px; text-align: center; font-weight: 600;
+        font-variant-numeric: tabular-nums;
+    }
+    .cart-line-total { display: flex; align-items: center; gap: .25rem; }
+    .cart-line-total strong { font-variant-numeric: tabular-nums; min-width: 80px; text-align: right; }
+
+    .pos-cart-foot {
+        border-top: 1px solid var(--border);
+        padding: 1rem 1.1rem;
+        background: var(--surface-2);
+    }
+    .pos-totals { display: flex; flex-direction: column; gap: .35rem; }
+    .pos-totals > div { display: flex; justify-content: space-between; align-items: center; font-size: .85rem; }
+    .pos-totals .total-line { font-size: 1.3rem; font-weight: 700; padding-top: .5rem; margin-top: .25rem; border-top: 1px dashed var(--border); }
+    .pos-totals .total-amount { color: var(--accent-600); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+    .discount-input { width: 100px; padding: .25rem .5rem; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: .85rem; text-align: right; font-variant-numeric: tabular-nums; }
+
+    .pos-payment { margin-top: 1rem; }
+    .payment-grid {
+        display: grid; grid-template-columns: repeat(3, 1fr);
+        gap: .35rem; margin-top: .35rem;
+    }
+    .pay-card {
+        border: 1.5px solid var(--border);
+        background: var(--surface);
+        border-radius: var(--radius);
+        padding: .55rem .35rem;
+        cursor: pointer; font: inherit;
+        display: flex; flex-direction: column; align-items: center; gap: .15rem;
+        font-size: .68rem; color: var(--text-muted);
+        transition: all var(--transition);
+    }
+    .pay-card:hover { border-color: var(--border-strong); }
+    .pay-card .bi { font-size: 1rem; color: var(--text-muted); }
+    .pay-card.active { border-color: var(--brand); background: var(--brand-50); color: var(--brand-700); }
+    .pay-card.active .bi { color: var(--brand); }
+</style>
+
 @code {
-    Sale sale = new() { SaleDate = DateTime.UtcNow, Status = SaleStatus.Completed };
+    static readonly string[] Categories = { "Foodstuff", "Building", "Electronics", "Telecom", "Household", "Beverage", "Textile" };
+
+    Sale sale = new() { SaleDate = DateTime.UtcNow, Status = SaleStatus.Completed, Currency = "NLe", ExchangeRate = 1m };
     List<Product>? products;
     List<Store>? stores;
     List<Customer>? customers;
-    int selectedProductId;
-    int qty = 1;
+    string? activeCat;
+    string? search;
     bool saving;
     string? error;
 
@@ -129,31 +332,65 @@ else
     decimal Tax => Math.Round(Subtotal * 0.15m, 2);
     decimal Total => Subtotal + Tax - sale.Discount;
 
+    IEnumerable<Product> FilteredProducts =>
+        products!
+            .Where(p => activeCat == null || p.Category == activeCat)
+            .Where(p => string.IsNullOrWhiteSpace(search)
+                || p.Name.Contains(search!, StringComparison.OrdinalIgnoreCase)
+                || p.Sku.Contains(search!, StringComparison.OrdinalIgnoreCase)
+                || (p.Barcode != null && p.Barcode.Contains(search!)));
+
     protected override async Task OnInitializedAsync()
     {
+        Layout.Set("New Sale", "Tap products to add them to the cart");
         products = await Inv.GetProductsAsync();
         stores = await Inv.GetStoresAsync();
         customers = await Crm.GetCustomersAsync();
         if (stores.Any()) sale.StoreId = stores.First().Id;
+        sale.CashierName = User.UserName;
     }
 
-    void AddItem()
+    void AddProduct(Product p)
     {
-        if (selectedProductId == 0 || qty < 1) return;
-        var p = products!.First(x => x.Id == selectedProductId);
-        sale.Items.Add(new SaleItem
+        var line = sale.Items.FirstOrDefault(i => i.ProductId == p.Id);
+        if (line != null)
         {
-            ProductId = p.Id,
-            ProductName = p.Name,
-            Quantity = qty,
-            UnitPrice = p.UnitPrice,
-            LineTotal = qty * p.UnitPrice
-        });
-        selectedProductId = 0;
-        qty = 1;
+            line.Quantity++;
+            line.LineTotal = line.Quantity * line.UnitPrice - line.LineDiscount;
+        }
+        else
+        {
+            sale.Items.Add(new SaleItem
+            {
+                ProductId = p.Id, ProductName = p.Name,
+                Quantity = 1, UnitPrice = p.UnitPrice, CostPrice = p.CostPrice,
+                LineTotal = p.UnitPrice
+            });
+        }
     }
 
-    void Remove(SaleItem line) => sale.Items.Remove(line);
+    void Step(SaleItem line, int delta)
+    {
+        line.Quantity = Math.Max(0, line.Quantity + delta);
+        if (line.Quantity == 0) { sale.Items.Remove(line); return; }
+        line.LineTotal = line.Quantity * line.UnitPrice - line.LineDiscount;
+    }
+
+    void HandleSearchEnter(KeyboardEventArgs e)
+    {
+        if (e.Key != "Enter" || string.IsNullOrWhiteSpace(search)) return;
+        // Try exact barcode/SKU first
+        var match = products!.FirstOrDefault(p =>
+            string.Equals(p.Sku, search, StringComparison.OrdinalIgnoreCase) ||
+            p.Barcode == search);
+        if (match != null)
+        {
+            AddProduct(match);
+            search = "";
+        }
+    }
+
+    void ClearCart() { sale.Items.Clear(); sale.Discount = 0; sale.TransactionReference = null; }
 
     async Task Save()
     {
@@ -161,10 +398,45 @@ else
         saving = true; error = null;
         try
         {
-            await SalesSvc.CreateAsync(sale);
-            Nav.NavigateTo("/sales");
+            var id = await SalesSvc.CreateAsync(sale);
+            Toast.Success("Sale completed.");
+            Nav.NavigateTo($"/sales/{id}/print");
         }
         catch (Exception ex) { error = ex.Message; }
         finally { saving = false; }
     }
+
+    static string PayIcon(PaymentMethod pm) => pm switch
+    {
+        PaymentMethod.Cash => "bi-cash-stack",
+        PaymentMethod.MobileMoney => "bi-phone",
+        PaymentMethod.BankTransfer => "bi-bank",
+        PaymentMethod.Card => "bi-credit-card",
+        PaymentMethod.Credit => "bi-clock-history",
+        _ => "bi-coin"
+    };
+
+    static string IconFor(string? cat) => cat switch
+    {
+        "Foodstuff" => "bi-basket",
+        "Building" => "bi-bricks",
+        "Electronics" => "bi-cpu",
+        "Telecom" => "bi-phone-vibrate",
+        "Household" => "bi-house-heart",
+        "Beverage" => "bi-cup-straw",
+        "Textile" => "bi-bag",
+        _ => "bi-tag"
+    };
+
+    static string ColorFor(string? cat) => cat switch
+    {
+        "Foodstuff" => "linear-gradient(135deg,#10b981,#059669)",
+        "Building" => "linear-gradient(135deg,#f97316,#ea580c)",
+        "Electronics" => "linear-gradient(135deg,#3b82f6,#1d4ed8)",
+        "Telecom" => "linear-gradient(135deg,#8b5cf6,#7c3aed)",
+        "Household" => "linear-gradient(135deg,#ec4899,#db2777)",
+        "Beverage" => "linear-gradient(135deg,#06b6d4,#0891b2)",
+        "Textile" => "linear-gradient(135deg,#f59e0b,#d97706)",
+        _ => "linear-gradient(135deg,#64748b,#475569)"
+    };
 }

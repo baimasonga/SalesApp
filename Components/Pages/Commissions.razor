@@ -1,0 +1,69 @@
+@page "/commissions"
+@rendermode InteractiveServer
+@inject EmployeeService Emp
+@inject LayoutState Layout
+
+<PageTitle>Commissions</PageTitle>
+
+<div class="page-header"></div>
+
+<div class="filter-bar">
+    <label>From<input type="date" @bind="from" @bind:after="Reload" /></label>
+    <label>To<input type="date" @bind="to" @bind:after="Reload" /></label>
+    <button class="btn btn-sm" @onclick="@(() => Period(-30))">Last 30 days</button>
+    <button class="btn btn-sm" @onclick="@(() => Period(-7))">Last 7 days</button>
+</div>
+
+@if (rows == null) { <p class="muted">Loading…</p> }
+else if (!rows.Any()) { <div class="card empty-state"><i class="bi bi-cash-coin"></i><p>No data.</p></div> }
+else
+{
+    <div class="kpi-grid">
+        <KpiCard Title="Total Sales" Value="@Money.Format(rows.Sum(r => r.Sales))" Accent="blue" Icon="bi-graph-up" />
+        <KpiCard Title="Total Commission" Value="@Money.Format(rows.Sum(r => r.Commission))" Accent="green" Icon="bi-cash-coin" />
+        <KpiCard Title="Top Earner" Value="@(rows.First().Name)" Accent="orange" Icon="bi-trophy" />
+    </div>
+
+    <table class="table">
+        <thead><tr><th>Employee</th><th class="text-right">Sales Attributed</th><th class="text-right">Rate</th><th class="text-right">Commission Earned</th></tr></thead>
+        <tbody>
+            @foreach (var r in rows)
+            {
+                <tr>
+                    <td><strong>@r.Name</strong></td>
+                    <td class="text-right">@Money.Format(r.Sales)</td>
+                    <td class="text-right">@(r.Rate * 100)%</td>
+                    <td class="text-right"><strong>@Money.Format(r.Commission)</strong></td>
+                </tr>
+            }
+        </tbody>
+        <tfoot>
+            <tr><td>Total</td><td class="text-right">@Money.Format(rows.Sum(r => r.Sales))</td><td></td><td class="text-right">@Money.Format(rows.Sum(r => r.Commission))</td></tr>
+        </tfoot>
+    </table>
+}
+
+@code {
+    List<CommissionRow>? rows;
+    DateTime? from = DateTime.UtcNow.AddDays(-30);
+    DateTime? to = DateTime.UtcNow;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Layout.Set("Commissions", "Sales-based earnings per employee");
+        await Reload();
+    }
+
+    async Task Reload()
+    {
+        if (!from.HasValue || !to.HasValue) return;
+        rows = await Emp.GetCommissionsAsync(from.Value, to.Value);
+    }
+
+    async Task Period(int days)
+    {
+        from = DateTime.UtcNow.AddDays(days);
+        to = DateTime.UtcNow;
+        await Reload();
+    }
+}

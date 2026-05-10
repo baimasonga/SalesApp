@@ -1,0 +1,236 @@
+@page "/login"
+@rendermode InteractiveServer
+@layout EmptyLayout
+@inject CurrentUserService User
+@inject NavigationManager Nav
+
+<PageTitle>Sign in · Salone Sales</PageTitle>
+
+<div class="auth-shell">
+    <div class="auth-pane auth-form">
+        <div class="auth-card">
+            <a href="/" class="auth-brand">
+                <div class="auth-flag" aria-hidden="true">
+                    <span class="stripe-1"></span>
+                    <span class="stripe-2"></span>
+                    <span class="stripe-3"></span>
+                </div>
+                <div>
+                    <strong>Salone Sales</strong>
+                    <small>Business OS for Sierra Leone</small>
+                </div>
+            </a>
+
+            <div class="auth-head">
+                <h1>Welcome back</h1>
+                <p class="muted">Sign in to your workspace. This demo accepts any name — production wires in ASP.NET Identity.</p>
+            </div>
+
+            <div class="form-row">
+                <label>Your name</label>
+                <input @bind="name" placeholder="e.g. Aminata Kamara" autofocus />
+            </div>
+
+            <div class="form-row">
+                <label>Role</label>
+                <div class="role-grid">
+                    @foreach (var r in Roles)
+                    {
+                        <button type="button" class="role-card @(role == r.Key ? "active" : "")" @onclick="@(() => role = r.Key)">
+                            <i class="bi @r.Icon"></i>
+                            <strong>@r.Key</strong>
+                            <small>@r.Description</small>
+                        </button>
+                    }
+                </div>
+            </div>
+
+            <button class="btn btn-primary btn-lg btn-block mt-3" @onclick="SignIn">
+                Continue <i class="bi bi-arrow-right"></i>
+            </button>
+
+            <div class="auth-foot">
+                Currently signed in as <strong>@User.UserName</strong> · @User.Role
+            </div>
+        </div>
+    </div>
+
+    <div class="auth-pane auth-hero">
+        <div class="auth-hero-content">
+            <div class="auth-badge"><i class="bi bi-stars"></i> Trusted by businesses across Sierra Leone</div>
+            <h2>Run your business from one beautiful place.</h2>
+            <p>Track sales, manage inventory across multiple stores, build customer loyalty, and see your numbers in real time — all in one app, designed for the way Salone businesses actually work.</p>
+
+            <div class="feature-grid">
+                <div class="feature">
+                    <div class="feature-icon"><i class="bi bi-receipt"></i></div>
+                    <strong>Point-of-sale</strong>
+                    <small>NLe & USD · GST 15% · barcode-ready</small>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon"><i class="bi bi-box-seam"></i></div>
+                    <strong>Multi-store inventory</strong>
+                    <small>Transfers · purchase orders · stock take</small>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon"><i class="bi bi-people"></i></div>
+                    <strong>CRM & loyalty</strong>
+                    <small>WhatsApp · SMS · interaction log</small>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon"><i class="bi bi-graph-up-arrow"></i></div>
+                    <strong>Analytics & P&L</strong>
+                    <small>Profit margins · NRA tax export · targets</small>
+                </div>
+            </div>
+
+            <div class="auth-stats">
+                <div><strong>3</strong><span>seeded stores</span></div>
+                <div><strong>10</strong><span>products</span></div>
+                <div><strong>NLe</strong><span>currency</span></div>
+            </div>
+        </div>
+        <div class="auth-blobs">
+            <div class="blob blob-1"></div>
+            <div class="blob blob-2"></div>
+            <div class="blob blob-3"></div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .auth-shell { min-height: 100vh; display: grid; grid-template-columns: minmax(420px, 1fr) 1fr; }
+    @@media (max-width: 980px) { .auth-shell { grid-template-columns: 1fr; } .auth-hero { display: none; } }
+
+    .auth-pane { display: flex; align-items: center; justify-content: center; padding: 2rem; }
+
+    .auth-form { background: var(--surface); }
+    .auth-card { width: 100%; max-width: 420px; }
+
+    .auth-brand { display: flex; align-items: center; gap: .65rem; margin-bottom: 2rem; text-decoration: none; color: inherit; }
+    .auth-flag { width: 32px; height: 32px; border-radius: 7px; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 0 0 1px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.06); }
+    .auth-flag span { flex: 1; }
+    .auth-flag .stripe-1 { background: #1eb53a; }
+    .auth-flag .stripe-2 { background: #ffffff; }
+    .auth-flag .stripe-3 { background: #0072c6; }
+    .auth-brand strong { display: block; font-size: .9rem; font-weight: 600; }
+    .auth-brand small { color: var(--text-muted); font-size: .72rem; }
+
+    .auth-head { margin-bottom: 1.75rem; }
+    .auth-head h1 { font-size: 1.85rem; font-weight: 700; letter-spacing: -.025em; margin: 0 0 .35rem; }
+    .auth-head p { font-size: .9rem; }
+
+    .role-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .5rem; }
+    .role-card {
+        border: 1.5px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: .85rem .5rem;
+        background: var(--surface); cursor: pointer; font: inherit;
+        display: flex; flex-direction: column; align-items: center; gap: .3rem;
+        text-align: center; transition: all var(--transition);
+    }
+    .role-card:hover { border-color: var(--border-strong); }
+    .role-card .bi { font-size: 1.35rem; color: var(--text-muted); transition: color var(--transition); }
+    .role-card strong { font-size: .82rem; }
+    .role-card small { font-size: .68rem; color: var(--text-muted); }
+    .role-card.active { border-color: var(--brand); background: var(--brand-50); }
+    .role-card.active .bi, .role-card.active strong { color: var(--brand-700); }
+    .role-card.active small { color: var(--brand); }
+
+    .auth-foot {
+        margin-top: 1.5rem; padding-top: 1.5rem;
+        border-top: 1px solid var(--border);
+        text-align: center; font-size: .78rem; color: var(--text-muted);
+    }
+
+    /* Hero pane */
+    .auth-hero {
+        background: linear-gradient(135deg, #1e1b4b 0%, #312e81 30%, #1e3a8a 70%, #0c4a6e 100%);
+        color: white;
+        position: relative; overflow: hidden;
+    }
+    .auth-hero-content { max-width: 480px; position: relative; z-index: 2; }
+
+    .auth-badge {
+        display: inline-flex; align-items: center; gap: .35rem;
+        background: rgba(255, 255, 255, .1);
+        border: 1px solid rgba(255, 255, 255, .15);
+        padding: .35rem .75rem;
+        border-radius: var(--radius-full);
+        font-size: .72rem; font-weight: 500;
+        color: rgba(255, 255, 255, .9);
+        margin-bottom: 1.5rem;
+        backdrop-filter: blur(6px);
+    }
+    .auth-badge .bi { color: #fbbf24; }
+
+    .auth-hero h2 {
+        color: white;
+        font-size: 2.4rem; line-height: 1.1; font-weight: 700;
+        letter-spacing: -.03em; margin: 0 0 1rem;
+    }
+    .auth-hero p {
+        font-size: .95rem; line-height: 1.55;
+        color: rgba(255, 255, 255, .8);
+        margin: 0 0 2rem;
+    }
+
+    .feature-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .85rem; margin-bottom: 2rem; }
+    .feature {
+        background: rgba(255, 255, 255, .07);
+        border: 1px solid rgba(255, 255, 255, .1);
+        border-radius: var(--radius-lg);
+        padding: .9rem;
+        backdrop-filter: blur(8px);
+    }
+    .feature-icon {
+        width: 32px; height: 32px;
+        border-radius: var(--radius);
+        background: rgba(255, 255, 255, .12);
+        display: flex; align-items: center; justify-content: center;
+        font-size: .95rem; color: white;
+        margin-bottom: .55rem;
+    }
+    .feature strong { display: block; font-size: .82rem; color: white; margin-bottom: .15rem; }
+    .feature small { color: rgba(255, 255, 255, .7); font-size: .7rem; line-height: 1.35; display: block; }
+
+    .auth-stats {
+        display: flex; gap: 2rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid rgba(255, 255, 255, .12);
+    }
+    .auth-stats div { display: flex; flex-direction: column; }
+    .auth-stats strong { font-size: 1.4rem; font-weight: 700; color: white; letter-spacing: -.02em; }
+    .auth-stats span { font-size: .72rem; color: rgba(255, 255, 255, .65); text-transform: uppercase; letter-spacing: .04em; }
+
+    .auth-blobs { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+    .blob { position: absolute; border-radius: 50%; filter: blur(80px); opacity: .35; }
+    .blob-1 { width: 380px; height: 380px; background: #4f46e5; top: -100px; right: -100px; }
+    .blob-2 { width: 320px; height: 320px; background: #0ea5e9; bottom: -80px; left: -60px; }
+    .blob-3 { width: 220px; height: 220px; background: #8b5cf6; bottom: 20%; right: 30%; opacity: .25; }
+</style>
+
+@code {
+    string name = "";
+    string role = "Manager";
+
+    record Role(string Key, string Icon, string Description);
+    static readonly Role[] Roles = new[]
+    {
+        new Role("Cashier", "bi-receipt-cutoff", "Record sales"),
+        new Role("Manager", "bi-briefcase",     "Run daily ops"),
+        new Role("Admin",   "bi-shield-lock",   "Full access"),
+    };
+
+    protected override void OnInitialized()
+    {
+        name = User.UserName;
+        role = User.Role;
+    }
+
+    void SignIn()
+    {
+        User.SignIn(name, role);
+        Nav.NavigateTo("/");
+    }
+}

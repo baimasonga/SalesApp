@@ -1,0 +1,41 @@
+# Salone Sales — local production stack
+# Usage:  docker compose up -d
+# Then:   http://localhost:8080
+#
+# The first run takes ~1 min while EF creates the schema and seeds data.
+version: "3.9"
+
+services:
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: salone-db
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "Salone#Sales1234!"
+      MSSQL_PID: "Express"
+    ports:
+      - "1433:1433"
+    volumes:
+      - salone_db_data:/var/opt/mssql
+    healthcheck:
+      test: /opt/mssql-tools/bin/sqlcmd -S localhost -U SA -P "$$MSSQL_SA_PASSWORD" -Q "SELECT 1"
+      interval: 10s
+      retries: 10
+
+  app:
+    build: .
+    container_name: salone-app
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      Database__Provider: "SqlServer"
+      ConnectionStrings__Default: "Server=db;Database=SalesAppDb;User Id=SA;Password=Salone#Sales1234!;TrustServerCertificate=True"
+      Auth__Enabled: "false"
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+volumes:
+  salone_db_data:

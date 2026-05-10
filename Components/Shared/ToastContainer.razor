@@ -1,0 +1,53 @@
+@implements IDisposable
+@inject ToastService Toasts
+
+<div class="toast-stack">
+    @foreach (var t in items)
+    {
+        <div class="toast toast-@t.Kind.ToString().ToLowerInvariant()" @key="t.Id">
+            <i class="bi @IconFor(t.Kind)"></i>
+            <span>@t.Message</span>
+            <button class="toast-close" @onclick="() => Dismiss(t.Id)" aria-label="Dismiss">
+                <i class="bi bi-x"></i>
+            </button>
+        </div>
+    }
+</div>
+
+@code {
+    readonly List<Toast> items = new();
+
+    protected override void OnInitialized()
+    {
+        Toasts.OnShow += Add;
+        Toasts.OnDismiss += Remove;
+    }
+
+    void Add(Toast t)
+    {
+        items.Insert(0, t);
+        InvokeAsync(StateHasChanged);
+    }
+
+    void Remove(Guid id)
+    {
+        items.RemoveAll(x => x.Id == id);
+        InvokeAsync(StateHasChanged);
+    }
+
+    void Dismiss(Guid id) => Toasts.Dismiss(id);
+
+    static string IconFor(ToastKind k) => k switch
+    {
+        ToastKind.Success => "bi-check-circle-fill",
+        ToastKind.Warning => "bi-exclamation-triangle-fill",
+        ToastKind.Error => "bi-x-circle-fill",
+        _ => "bi-info-circle-fill"
+    };
+
+    public void Dispose()
+    {
+        Toasts.OnShow -= Add;
+        Toasts.OnDismiss -= Remove;
+    }
+}

@@ -27,6 +27,9 @@ public class Product
     [StringLength(20)]
     public string Unit { get; set; } = "pcs";
 
+    [StringLength(50)]
+    public string? Barcode { get; set; }
+
     public bool IsActive { get; set; } = true;
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

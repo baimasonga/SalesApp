@@ -1,15 +1,28 @@
 @page "/stores"
 @rendermode InteractiveServer
 @inject InventoryService Inv
+@inject LayoutState Layout
+@inject ToastService Toast
 
 <PageTitle>Stores</PageTitle>
 
 <div class="page-header">
-    <h1>Stores</h1>
-    <button class="btn btn-primary" @onclick="@(() => Edit(new Store()))">+ Add Store</button>
+    <div class="actions">
+        <button class="btn btn-primary" @onclick="@(() => Edit(new Store()))">
+            <i class="bi bi-plus-lg"></i> Add Store
+        </button>
+    </div>
 </div>
 
-@if (stores == null) { <p>Loading…</p> }
+@if (stores == null) { <Skeleton Height="200" /> }
+else if (!stores.Any())
+{
+    <EmptyState Icon="bi-shop" Title="No stores yet" Description="Add your first store location to start tracking inventory and sales by branch.">
+        <Actions>
+            <button class="btn btn-primary" @onclick="@(() => Edit(new Store()))"><i class="bi bi-plus-lg"></i> Add store</button>
+        </Actions>
+    </EmptyState>
+}
 else
 {
     <table class="table">
@@ -24,7 +37,7 @@ else
                     <td>@s.Phone</td>
                     <td>@s.ManagerName</td>
                     <td>@(s.IsActive ? "✓" : "—")</td>
-                    <td><button class="btn btn-sm" @onclick="() => Edit(s)">Edit</button></td>
+                    <td><button class="btn btn-sm" @onclick="() => Edit(s)" title="Edit"><i class="bi bi-pencil"></i></button></td>
                 </tr>
             }
         </tbody>
@@ -33,24 +46,40 @@ else
 
 @if (editing != null)
 {
-    <div class="modal-backdrop" @onclick="() => editing = null"></div>
-    <div class="modal">
-        <h3>@(editing.Id == 0 ? "New" : "Edit") Store</h3>
-        <div class="form-row"><label>Name</label><input @bind="editing.Name" /></div>
-        <div class="form-row"><label>Location</label><input @bind="editing.Location" /></div>
-        <div class="form-row"><label>District</label>
-            <select @bind="editing.District">
-                @foreach (var d in Districts) { <option value="@d">@d</option> }
-            </select>
+    <div class="slideover-backdrop" @onclick="() => editing = null"></div>
+    <aside class="slideover">
+        <div class="slideover-head">
+            <div>
+                <h3>@(editing.Id == 0 ? "New" : "Edit") store</h3>
+                <p class="muted text-xs mb-0">Branch location and manager details.</p>
+            </div>
+            <button class="btn btn-ghost btn-icon" @onclick="() => editing = null"><i class="bi bi-x-lg"></i></button>
         </div>
-        <div class="form-row"><label>Phone</label><input @bind="editing.Phone" /></div>
-        <div class="form-row"><label>Manager</label><input @bind="editing.ManagerName" /></div>
-        <div class="form-row"><label>Active</label><input type="checkbox" @bind="editing.IsActive" /></div>
-        <div class="modal-actions">
+        <div class="slideover-body">
+            <div class="form-section">
+                <div class="form-section-title">Identity</div>
+                <div class="form-row"><label>Name *</label><input @bind="editing.Name" placeholder="e.g. Freetown Main" /></div>
+                <div class="form-row"><label>Location</label><input @bind="editing.Location" placeholder="Street / area" /></div>
+                <div class="form-row"><label>District</label>
+                    <select @bind="editing.District">
+                        @foreach (var d in Districts) { <option value="@d">@d</option> }
+                    </select>
+                </div>
+            </div>
+            <div class="form-section">
+                <div class="form-section-title">Contact</div>
+                <div class="form-row"><label>Phone</label><input @bind="editing.Phone" placeholder="+232 …" /></div>
+                <div class="form-row"><label>Manager</label><input @bind="editing.ManagerName" /></div>
+            </div>
+            <div class="form-section">
+                <div class="form-row"><label class="flex items-center gap-2"><input type="checkbox" @bind="editing.IsActive" /> Active</label></div>
+            </div>
+        </div>
+        <div class="slideover-foot">
             <button class="btn" @onclick="() => editing = null">Cancel</button>
-            <button class="btn btn-primary" @onclick="Save">Save</button>
+            <button class="btn btn-primary" @onclick="Save"><i class="bi bi-check-lg"></i> Save store</button>
         </div>
-    </div>
+    </aside>
 }
 
 @code {
@@ -64,14 +93,24 @@ else
         "Pujehun","Tonkolili","Makeni"
     };
 
-    protected override async Task OnInitializedAsync() => stores = await Inv.GetStoresAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        Layout.Set("Stores", "Branch locations across Sierra Leone");
+        stores = await Inv.GetStoresAsync();
+    }
 
     void Edit(Store s) => editing = s;
 
     async Task Save()
     {
-        await Inv.SaveStoreAsync(editing!);
-        editing = null;
-        stores = await Inv.GetStoresAsync();
+        if (string.IsNullOrWhiteSpace(editing!.Name)) { Toast.Warning("Name is required."); return; }
+        try
+        {
+            await Inv.SaveStoreAsync(editing);
+            Toast.Success("Store saved.");
+            editing = null;
+            stores = await Inv.GetStoresAsync();
+        }
+        catch (Exception ex) { Toast.Error($"Save failed: {ex.Message}"); }
     }
 }

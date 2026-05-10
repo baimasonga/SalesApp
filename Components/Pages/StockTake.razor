@@ -1,0 +1,117 @@
+@page "/stock-take"
+@rendermode InteractiveServer
+@inject InventoryService Inv
+@inject LayoutState Layout
+
+<PageTitle>Stock Take</PageTitle>
+
+<div class="page-header"></div>
+
+<div class="filter-bar">
+    <label>Store
+        <select @bind="storeId" @bind:after="Reload">
+            <option value="0">— Choose store —</option>
+            @if (stores != null) { @foreach (var s in stores) { <option value="@s.Id">@s.Name</option> } }
+        </select>
+    </label>
+    <p class="muted mb-1" style="margin-left:auto; align-self:center">Variance = counted − system. Click Apply to adjust.</p>
+</div>
+
+@if (storeId == 0)
+{
+    <div class="card empty-state">
+        <i class="bi bi-clipboard-data"></i>
+        <p>Pick a store to begin counting.</p>
+    </div>
+}
+else if (rows == null) { <p class="muted">Loading…</p> }
+else
+{
+    <table class="table">
+        <thead><tr><th>SKU</th><th>Product</th><th class="text-right">System</th><th class="text-right">Counted</th><th class="text-right">Variance</th><th></th></tr></thead>
+        <tbody>
+            @foreach (var r in rows)
+            {
+                int variance = r.Counted - r.SystemQty;
+                <tr class="@(variance != 0 && r.Counted >= 0 ? "row-low" : "")">
+                    <td><code>@r.Sku</code></td>
+                    <td>@r.Name</td>
+                    <td class="text-right">@r.SystemQty</td>
+                    <td class="text-right" style="width:120px"><input type="number" min="0" @bind="r.Counted" style="width:90px;text-align:right" /></td>
+                    <td class="text-right">
+                        @if (variance > 0) { <span style="color:#16a34a">+@variance</span> }
+                        else if (variance < 0) { <span style="color:#dc2626">@variance</span> }
+                        else { <span class="muted">0</span> }
+                    </td>
+                    <td>
+                        @if (variance != 0)
+                        {
+                            <button class="btn btn-sm btn-primary" @onclick="() => Apply(r)">Apply</button>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    <button class="btn btn-success" @onclick="ApplyAll">Apply All Variances</button>
+    @if (msg != null) { <p class="muted mt-3">@msg</p> }
+}
+
+@code {
+    List<Store>? stores;
+    int storeId = 0;
+    List<Row>? rows;
+    string? msg;
+
+    public class Row
+    {
+        public int ProductId { get; set; }
+        public string Sku { get; set; } = "";
+        public string Name { get; set; } = "";
+        public int SystemQty { get; set; }
+        public int Counted { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Layout.Set("Stock Take", "Physical count & variance adjustment");
+        stores = await Inv.GetStoresAsync();
+    }
+
+    async Task Reload()
+    {
+        msg = null;
+        if (storeId == 0) { rows = null; return; }
+        var inv = await Inv.GetInventoryAsync(storeId);
+        rows = inv.Select(i => new Row
+        {
+            ProductId = i.ProductId,
+            Sku = i.Product?.Sku ?? "",
+            Name = i.Product?.Name ?? "",
+            SystemQty = i.QuantityOnHand,
+            Counted = i.QuantityOnHand
+        }).ToList();
+    }
+
+    async Task Apply(Row r)
+    {
+        var delta = r.Counted - r.SystemQty;
+        if (delta == 0) return;
+        await Inv.AdjustStockAsync(storeId, r.ProductId, delta);
+        r.SystemQty = r.Counted;
+        msg = $"Adjusted {r.Name} by {delta:+#;-#;0}.";
+    }
+
+    async Task ApplyAll()
+    {
+        int count = 0;
+        foreach (var r in rows!.Where(x => x.Counted != x.SystemQty))
+        {
+            var delta = r.Counted - r.SystemQty;
+            await Inv.AdjustStockAsync(storeId, r.ProductId, delta);
+            r.SystemQty = r.Counted;
+            count++;
+        }
+        msg = $"Applied {count} variance(s).";
+    }
+}

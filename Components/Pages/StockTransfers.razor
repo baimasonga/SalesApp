@@ -1,0 +1,167 @@
+@page "/transfers"
+@rendermode InteractiveServer
+@inject StockTransferService Trf
+@inject InventoryService Inv
+@inject CurrentUserService User
+@inject LayoutState Layout
+@inject ToastService Toast
+
+<PageTitle>Stock Transfers</PageTitle>
+
+<div class="page-header">
+    <div class="actions">
+        <button class="btn btn-primary" @onclick="OpenNew"><i class="bi bi-plus-lg"></i> New Transfer</button>
+    </div>
+</div>
+
+@if (transfers == null) { <Skeleton Height="200" /> }
+else if (!transfers.Any())
+{
+    <EmptyState Icon="bi-arrow-left-right" Title="No transfers yet" Description="Move stock between branches when one runs low and another has surplus.">
+        <Actions>
+            <button class="btn btn-primary" @onclick="OpenNew"><i class="bi bi-plus-lg"></i> New transfer</button>
+        </Actions>
+    </EmptyState>
+}
+else
+{
+    <table class="table">
+        <thead><tr><th>Number</th><th>Date</th><th>From</th><th>To</th><th>Items</th><th>Status</th><th>By</th><th></th></tr></thead>
+        <tbody>
+            @foreach (var t in transfers)
+            {
+                <tr>
+                    <td><strong>@t.TransferNumber</strong></td>
+                    <td>@t.TransferDate.ToString("dd MMM yyyy")</td>
+                    <td>@t.FromStore?.Name</td>
+                    <td>@t.ToStore?.Name</td>
+                    <td>@t.Items.Count</td>
+                    <td><span class="status status-@t.Status.ToString().ToLower()">@t.Status</span></td>
+                    <td>@t.RequestedBy</td>
+                    <td>
+                        <div class="row-actions">
+                            @if (t.Status == StockTransferStatus.Pending)
+                            {
+                                <button class="btn btn-sm btn-success" @onclick="() => Complete(t.Id)" title="Complete transfer"><i class="bi bi-check-lg"></i> Complete</button>
+                                <button class="btn btn-sm btn-danger" @onclick="() => Cancel(t.Id)" title="Cancel"><i class="bi bi-x"></i></button>
+                            }
+                        </div>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (showNew)
+{
+    <div class="modal-backdrop" @onclick="() => showNew = false"></div>
+    <div class="modal" style="min-width: 600px;">
+        <h3>New Stock Transfer</h3>
+        <div class="grid-2">
+            <div class="form-row"><label>From</label>
+                <select @bind="newT.FromStoreId">
+                    @foreach (var s in stores!) { <option value="@s.Id">@s.Name</option> }
+                </select>
+            </div>
+            <div class="form-row"><label>To</label>
+                <select @bind="newT.ToStoreId">
+                    @foreach (var s in stores!) { <option value="@s.Id">@s.Name</option> }
+                </select>
+            </div>
+        </div>
+        <div class="form-row"><label>Notes</label><textarea rows="2" @bind="newT.Notes"></textarea></div>
+
+        <h4>Add item</h4>
+        <div class="grid-2">
+            <div class="form-row"><label>Product</label>
+                <select @bind="selectedPid">
+                    <option value="0">— Choose —</option>
+                    @foreach (var p in products!) { <option value="@p.Id">@p.Name</option> }
+                </select>
+            </div>
+            <div class="form-row"><label>Quantity</label>
+                <input type="number" min="1" @bind="qty" />
+            </div>
+        </div>
+        <button class="btn" @onclick="AddItem">Add Item</button>
+
+        @if (newT.Items.Any())
+        {
+            <table class="table mt-3">
+                <thead><tr><th>Product</th><th>Qty</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var line in newT.Items)
+                    {
+                        <tr><td>@line.ProductName</td><td>@line.Quantity</td>
+                            <td><button class="btn btn-sm btn-danger" @onclick="() => newT.Items.Remove(line)">×</button></td></tr>
+                    }
+                </tbody>
+            </table>
+        }
+
+        @if (!string.IsNullOrEmpty(error)) { <p class="error">@error</p> }
+        <div class="modal-actions">
+            <button class="btn" @onclick="() => showNew = false">Cancel</button>
+            <button class="btn btn-primary" @onclick="Save" disabled="@saving">@(saving ? "Saving…" : "Create")</button>
+        </div>
+    </div>
+}
+
+@code {
+    List<StockTransfer>? transfers;
+    List<Store>? stores;
+    List<Product>? products;
+    bool showNew, saving;
+    string? error;
+    StockTransfer newT = new();
+    int selectedPid; int qty = 1;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Layout.Set("Stock Transfers", "Move inventory between stores");
+        transfers = await Trf.GetAllAsync();
+        stores = await Inv.GetStoresAsync();
+        products = await Inv.GetProductsAsync();
+    }
+
+    void OpenNew()
+    {
+        newT = new StockTransfer { RequestedBy = User.UserName };
+        if (stores!.Count >= 2) { newT.FromStoreId = stores[0].Id; newT.ToStoreId = stores[1].Id; }
+        showNew = true; error = null;
+    }
+
+    void AddItem()
+    {
+        if (selectedPid == 0 || qty < 1) return;
+        var p = products!.First(x => x.Id == selectedPid);
+        newT.Items.Add(new StockTransferItem { ProductId = p.Id, ProductName = p.Name, Quantity = qty });
+        selectedPid = 0; qty = 1;
+    }
+
+    async Task Save()
+    {
+        if (!newT.Items.Any()) { error = "Add at least one item."; return; }
+        saving = true; error = null;
+        try
+        {
+            await Trf.CreateAsync(newT);
+            showNew = false;
+            transfers = await Trf.GetAllAsync();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { saving = false; }
+    }
+
+    async Task Complete(int id)
+    {
+        try { await Trf.CompleteAsync(id); Toast.Success("Transfer completed."); transfers = await Trf.GetAllAsync(); }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+    }
+    async Task Cancel(int id)
+    {
+        try { await Trf.CancelAsync(id); Toast.Warning("Transfer cancelled."); transfers = await Trf.GetAllAsync(); }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+    }
+}

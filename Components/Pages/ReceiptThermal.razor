@@ -1,0 +1,125 @@
+@page "/sales/{Id:int}/receipt"
+@layout EmptyLayout
+@rendermode InteractiveServer
+@inject SalesService SalesSvc
+@inject IJSRuntime JS
+
+@if (sale == null)
+{
+    <p>Loading…</p>
+}
+else
+{
+    <PageTitle>Receipt @sale.InvoiceNumber</PageTitle>
+
+    <div class="receipt-actions no-print">
+        <button class="btn btn-primary" @onclick="Print"><i class="bi bi-printer"></i> Print</button>
+        <a class="btn" href="/sales/@Id/print"><i class="bi bi-file-earmark"></i> A4 Invoice</a>
+        <a class="btn" href="/sales"><i class="bi bi-arrow-left"></i> Back</a>
+    </div>
+
+    <div class="receipt-80">
+        <div class="r-center">
+            <strong>SALONE SALES</strong><br />
+            @sale.Store?.Name<br />
+            <small>@sale.Store?.Location, @sale.Store?.District</small><br />
+            <small>Tel: @sale.Store?.Phone</small>
+        </div>
+        <div class="r-divider"></div>
+
+        <div class="r-row"><span>Receipt</span><span>@sale.InvoiceNumber</span></div>
+        <div class="r-row"><span>Date</span><span>@sale.SaleDate.ToString("dd/MM/yy HH:mm")</span></div>
+        <div class="r-row"><span>Cashier</span><span>@sale.CashierName</span></div>
+        @if (sale.Customer != null)
+        {
+            <div class="r-row"><span>Customer</span><span>@sale.Customer.FullName</span></div>
+        }
+
+        <div class="r-divider"></div>
+
+        @foreach (var item in sale.Items)
+        {
+            <div class="r-item">
+                <div>@item.ProductName</div>
+                <div class="r-row">
+                    <span>@item.Quantity x @item.UnitPrice.ToString("N2")</span>
+                    <span>@item.LineTotal.ToString("N2")</span>
+                </div>
+            </div>
+        }
+
+        <div class="r-divider"></div>
+
+        <div class="r-row"><span>Subtotal</span><span>@sale.Subtotal.ToString("N2")</span></div>
+        <div class="r-row"><span>GST 15%</span><span>@sale.Tax.ToString("N2")</span></div>
+        @if (sale.Discount > 0)
+        {
+            <div class="r-row"><span>Discount</span><span>-@sale.Discount.ToString("N2")</span></div>
+        }
+
+        <div class="r-divider"></div>
+        <div class="r-row r-total">
+            <strong>TOTAL @sale.Currency</strong>
+            <strong>@sale.Total.ToString("N2")</strong>
+        </div>
+        <div class="r-divider"></div>
+
+        <div class="r-row"><span>Paid via</span><span>@sale.PaymentMethod</span></div>
+        @if (!string.IsNullOrEmpty(sale.TransactionReference))
+        {
+            <div class="r-row"><span>Ref</span><span>@sale.TransactionReference</span></div>
+        }
+
+        <div class="r-divider"></div>
+        <div class="r-center">
+            <small>Tenki — thank you!</small><br />
+            <small>Powered by Salone Sales</small>
+        </div>
+    </div>
+}
+
+<style>
+    .receipt-actions {
+        max-width: 80mm; margin: 1rem auto; display: flex; gap: .4rem; padding: 0 .25rem;
+    }
+    .receipt-80 {
+        width: 80mm;
+        margin: 0 auto;
+        padding: 8mm 4mm;
+        background: white;
+        color: black;
+        font-family: 'Courier New', monospace;
+        font-size: 11px;
+        line-height: 1.45;
+        border: 1px solid #ddd;
+        box-shadow: 0 2px 10px rgba(0,0,0,.08);
+    }
+    .receipt-80 strong { font-weight: 700; }
+    .r-center { text-align: center; }
+    .r-divider {
+        border-top: 1px dashed black;
+        margin: 6px 0;
+    }
+    .r-row { display: flex; justify-content: space-between; gap: 1ch; }
+    .r-item { margin-bottom: 4px; }
+    .r-total { font-size: 13px; padding: 2px 0; }
+
+    @@media print {
+        @@page { size: 80mm auto; margin: 0; }
+        body { background: white !important; }
+        .receipt-80 { width: 80mm; box-shadow: none; border: none; padding: 4mm; }
+        .receipt-actions, .topbar, .sidebar { display: none !important; }
+    }
+</style>
+
+@code {
+    [Parameter] public int Id { get; set; }
+    Sale? sale;
+
+    protected override async Task OnParametersSetAsync() => sale = await SalesSvc.GetAsync(Id);
+
+    async Task Print()
+    {
+        try { await JS.InvokeVoidAsync("window.print"); } catch { }
+    }
+}

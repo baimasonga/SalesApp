@@ -32,6 +32,17 @@ public class Sale
     public decimal Tax { get; set; }
     public decimal Total { get; set; }
 
+    [StringLength(160)]
+    public string? DiscountReason { get; set; }
+
+    [StringLength(80)]
+    public string? TransactionReference { get; set; } // Mobile money / bank ref
+
+    [StringLength(8)]
+    public string Currency { get; set; } = "NLe"; // NLe or USD
+
+    public decimal ExchangeRate { get; set; } = 1m; // to NLe
+
     public List<SaleItem> Items { get; set; } = new();
 }
 
@@ -49,6 +60,8 @@ public class SaleItem
 
     public int Quantity { get; set; }
     public decimal UnitPrice { get; set; }
+    public decimal CostPrice { get; set; }
+    public decimal LineDiscount { get; set; }
     public decimal LineTotal { get; set; }
 }
 

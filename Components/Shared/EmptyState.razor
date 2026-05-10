@@ -1,0 +1,19 @@
+<div class="empty-state">
+    <div class="empty-icon"><i class="bi @Icon"></i></div>
+    <h3>@Title</h3>
+    @if (!string.IsNullOrEmpty(Description))
+    {
+        <p>@Description</p>
+    }
+    @if (Actions != null)
+    {
+        <div class="actions">@Actions</div>
+    }
+</div>
+
+@code {
+    [Parameter] public string Icon { get; set; } = "bi-inbox";
+    [Parameter] public string Title { get; set; } = "Nothing here yet";
+    [Parameter] public string? Description { get; set; }
+    [Parameter] public RenderFragment? Actions { get; set; }
+}

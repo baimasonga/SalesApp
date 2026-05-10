@@ -1,0 +1,161 @@
+@page "/targets"
+@rendermode InteractiveServer
+@inject TargetService Tg
+@inject InventoryService Inv
+@inject LayoutState Layout
+
+<PageTitle>Sales Targets</PageTitle>
+
+<div class="page-header">
+    <div class="actions">
+        <button class="btn btn-primary" @onclick="@(() => Edit(new SalesTarget { Year = DateTime.UtcNow.Year, Month = DateTime.UtcNow.Month }))">
+            <i class="bi bi-plus-lg"></i> Add Target
+        </button>
+    </div>
+</div>
+
+<div class="card">
+    <div style="display:flex; gap:1rem; align-items:center">
+        <strong>This month progress:</strong>
+        <select @bind="year" @bind:after="LoadProgress">
+            @for (int y = DateTime.UtcNow.Year - 2; y <= DateTime.UtcNow.Year + 1; y++) { <option value="@y">@y</option> }
+        </select>
+        <select @bind="month" @bind:after="LoadProgress">
+            @for (int m = 1; m <= 12; m++) { <option value="@m">@System.Globalization.CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(m)</option> }
+        </select>
+    </div>
+</div>
+
+@if (progress == null) { <p>Loading…</p> }
+else if (!progress.Any()) { <p class="muted">No targets set for this month.</p> }
+else
+{
+    <table class="table">
+        <thead><tr><th>Scope</th><th class="text-right">Target</th><th class="text-right">Actual</th><th>Progress</th><th class="text-right">%</th></tr></thead>
+        <tbody>
+            @foreach (var p in progress)
+            {
+                var color = p.Percent >= 100 ? "#16a34a" : p.Percent >= 75 ? "#0072c6" : p.Percent >= 50 ? "#ea580c" : "#dc2626";
+                var pctCapped = Math.Min(100m, p.Percent);
+                <tr>
+                    <td><strong>@p.Scope</strong></td>
+                    <td class="text-right">@Money.Format(p.Target)</td>
+                    <td class="text-right">@Money.Format(p.Actual)</td>
+                    <td>
+                        <div class="hbar-track" style="width: 280px">
+                            <div class="hbar-fill" style="width:@(pctCapped.ToString("0.##"))%; background:@color"></div>
+                        </div>
+                    </td>
+                    <td class="text-right" style="color:@color"><strong>@p.Percent.ToString("0.#")%</strong></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+<h2 class="mt-3">All Targets</h2>
+@if (targets == null) { <p>Loading…</p> }
+else
+{
+    <table class="table">
+        <thead><tr><th>Year</th><th>Month</th><th>Scope</th><th class="text-right">Target</th><th>Notes</th><th></th></tr></thead>
+        <tbody>
+            @foreach (var t in targets)
+            {
+                <tr>
+                    <td>@t.Year</td>
+                    <td>@System.Globalization.CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(t.Month)</td>
+                    <td>@(t.Store?.Name ?? "Company-wide")</td>
+                    <td class="text-right">@Money.Format(t.TargetAmount)</td>
+                    <td>@t.Notes</td>
+                    <td>
+                        <button class="btn btn-sm" @onclick="() => Edit(t)">Edit</button>
+                        <button class="btn btn-sm btn-danger" @onclick="() => Delete(t.Id)">×</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (editing != null)
+{
+    <div class="slideover-backdrop" @onclick="() => editing = null"></div>
+    <aside class="slideover">
+        <div class="slideover-head">
+            <div>
+                <h3>Sales target</h3>
+                <p class="muted text-xs mb-0">Per-store or company-wide monthly goal.</p>
+            </div>
+            <button class="btn btn-ghost btn-icon" @onclick="() => editing = null"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="slideover-body">
+            <div class="form-section">
+                <div class="form-section-title">Period</div>
+                <div class="form-row"><label>Year</label><input type="number" @bind="editing.Year" /></div>
+                <div class="form-row"><label>Month</label>
+                    <select @bind="editing.Month">
+                        @for (int m = 1; m <= 12; m++) { <option value="@m">@System.Globalization.CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(m)</option> }
+                    </select>
+                </div>
+            </div>
+            <div class="form-section">
+                <div class="form-section-title">Scope</div>
+                <div class="form-row"><label>Store</label>
+                    <select @bind="editing.StoreId">
+                        <option value="">— Company-wide —</option>
+                        @if (stores != null) { @foreach (var s in stores) { <option value="@s.Id">@s.Name</option> } }
+                    </select>
+                </div>
+                <div class="form-row"><label>Target amount (NLe)</label><input type="number" step="0.01" @bind="editing.TargetAmount" /></div>
+                <div class="form-row"><label>Notes</label><input @bind="editing.Notes" /></div>
+            </div>
+        </div>
+        <div class="slideover-foot">
+            <button class="btn" @onclick="() => editing = null">Cancel</button>
+            <button class="btn btn-primary" @onclick="Save"><i class="bi bi-check-lg"></i> Save target</button>
+        </div>
+    </aside>
+}
+
+@code {
+    List<SalesTarget>? targets;
+    List<TargetProgress>? progress;
+    List<Store>? stores;
+    SalesTarget? editing;
+    int year = DateTime.UtcNow.Year;
+    int month = DateTime.UtcNow.Month;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Layout.Set("Sales Targets", "Monthly goal tracking by store");
+        stores = await Inv.GetStoresAsync();
+        await Reload();
+    }
+
+    async Task Reload()
+    {
+        targets = await Tg.GetAllAsync();
+        await LoadProgress();
+    }
+
+    async Task LoadProgress()
+    {
+        progress = await Tg.GetProgressAsync(year, month);
+    }
+
+    void Edit(SalesTarget t) => editing = t;
+
+    async Task Save()
+    {
+        await Tg.SaveAsync(editing!);
+        editing = null;
+        await Reload();
+    }
+
+    async Task Delete(int id)
+    {
+        await Tg.DeleteAsync(id);
+        await Reload();
+    }
+}

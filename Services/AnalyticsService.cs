@@ -15,6 +15,8 @@ public record DashboardStats(
 
 public record SeriesPoint(string Label, decimal Value);
 
+public record ProductProfitRow(string Name, int Quantity, decimal Revenue, decimal Cost, decimal Profit, decimal MarginPercent);
+
 public class AnalyticsService
 {
     private readonly IDbContextFactory<SalesDbContext> _factory;
@@ -81,6 +83,29 @@ public class AnalyticsService
             .ToListAsync();
         return rows.OrderByDescending(r => r.Total)
             .Select(r => new SeriesPoint(r.Label, r.Total)).ToList();
+    }
+
+    public async Task<List<ProductProfitRow>> GetProductProfitAsync(DateTime? from = null, DateTime? to = null)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        var q = db.SaleItems.Where(i => i.Sale!.Status == SaleStatus.Completed);
+        if (from.HasValue) q = q.Where(i => i.Sale!.SaleDate >= from.Value);
+        if (to.HasValue) q = q.Where(i => i.Sale!.SaleDate < to.Value.AddDays(1));
+
+        var rows = await q.GroupBy(i => i.ProductName)
+            .Select(g => new
+            {
+                Name = g.Key,
+                Qty = g.Sum(x => x.Quantity),
+                Revenue = g.Sum(x => x.LineTotal),
+                Cost = g.Sum(x => x.CostPrice * x.Quantity)
+            })
+            .ToListAsync();
+
+        return rows.Select(r => new ProductProfitRow(
+            r.Name, r.Qty, r.Revenue, r.Cost, r.Revenue - r.Cost,
+            r.Revenue == 0 ? 0 : Math.Round((r.Revenue - r.Cost) / r.Revenue * 100m, 1)))
+            .OrderByDescending(p => p.Profit).ToList();
     }
 
     public async Task<List<SeriesPoint>> GetPaymentMixAsync()

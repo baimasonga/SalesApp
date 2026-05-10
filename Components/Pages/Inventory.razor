@@ -1,28 +1,38 @@
 @page "/inventory"
 @rendermode InteractiveServer
 @inject InventoryService Inv
+@inject LayoutState Layout
 
 <PageTitle>Inventory</PageTitle>
 
 <div class="page-header">
-    <h1>Inventory</h1>
-    <div>
+    <div class="actions">
+        <a class="btn" href="/export/inventory.csv" target="_blank"><i class="bi bi-download"></i> CSV</a>
+        <a class="btn" href="/reorder"><i class="bi bi-exclamation-triangle"></i> Reorder Report</a>
+    </div>
+</div>
+
+<div class="filter-bar">
+    <label>Store
         <select @bind="filterStoreId" @bind:after="Reload">
             <option value="0">All stores</option>
-            @if (stores != null)
-            {
-                @foreach (var s in stores) { <option value="@s.Id">@s.Name</option> }
-            }
+            @if (stores != null) { @foreach (var s in stores) { <option value="@s.Id">@s.Name</option> } }
         </select>
-    </div>
+    </label>
 </div>
 
 @if (items == null) { <p>Loading…</p> }
 else
 {
-    <div class="card mb-2">
-        <strong>Low stock:</strong> @items.Count(i => i.QuantityOnHand <= i.ReorderLevel) item(s) need reorder.
-    </div>
+    var lowCount = items.Count(i => i.QuantityOnHand <= i.ReorderLevel);
+    @if (lowCount > 0)
+    {
+        <div class="alert-warning mb-3">
+            <i class="bi bi-exclamation-triangle-fill"></i>
+            <strong>@lowCount</strong> item(s) at or below reorder level.
+            <a href="/reorder">View reorder report →</a>
+        </div>
+    }
     <table class="table">
         <thead><tr><th>Store</th><th>SKU</th><th>Product</th><th class="text-right">On Hand</th><th class="text-right">Reorder</th><th>Status</th><th>Adjust</th></tr></thead>
         <tbody>
@@ -35,11 +45,13 @@ else
                     <td>@i.Product?.Name</td>
                     <td class="text-right"><strong>@i.QuantityOnHand</strong></td>
                     <td class="text-right">@i.ReorderLevel</td>
-                    <td>@(low ? "⚠ Low" : "OK")</td>
+                    <td>@if (low) { <span class="status status-cancelled"><i class="bi bi-exclamation-triangle"></i> Low</span> } else { <span class="status status-completed">OK</span> }</td>
                     <td>
-                        <button class="btn btn-sm" @onclick="() => Adjust(i, -1)">−</button>
-                        <button class="btn btn-sm" @onclick="() => Adjust(i, 1)">+</button>
-                        <button class="btn btn-sm" @onclick="() => Adjust(i, 10)">+10</button>
+                        <div class="btn-row">
+                            <button class="btn btn-sm" @onclick="() => Adjust(i, -1)" title="Decrease"><i class="bi bi-dash"></i></button>
+                            <button class="btn btn-sm" @onclick="() => Adjust(i, 1)" title="Increase"><i class="bi bi-plus"></i></button>
+                            <button class="btn btn-sm" @onclick="() => Adjust(i, 10)">+10</button>
+                        </div>
                     </td>
                 </tr>
             }
@@ -54,6 +66,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        Layout.Set("Inventory", "Stock levels by store");
         stores = await Inv.GetStoresAsync();
         await Reload();
     }

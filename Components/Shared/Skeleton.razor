@@ -1,0 +1,9 @@
+<div class="skel" style="@Style"></div>
+
+@code {
+    [Parameter] public int Height { get; set; } = 16;
+    [Parameter] public string Width { get; set; } = "100%";
+    [Parameter] public string? StyleExtra { get; set; }
+
+    string Style => $"height:{Height}px;width:{Width};{StyleExtra}";
+}

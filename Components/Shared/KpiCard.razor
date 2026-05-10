@@ -1,14 +1,32 @@
 <div class="kpi @Accent">
-    <div class="kpi-icon">@Icon</div>
-    <div class="kpi-body">
-        <div class="kpi-title">@Title</div>
-        <div class="kpi-value">@Value</div>
+    <div class="kpi-row">
+        <div class="kpi-icon"><i class="bi @Icon"></i></div>
+        <div class="kpi-body">
+            <div class="kpi-title">@Title</div>
+            <div class="kpi-value">@Value</div>
+            @if (!string.IsNullOrEmpty(Trend))
+            {
+                <div class="kpi-trend @TrendDirection">
+                    @if (TrendDirection == "up")    { <i class="bi bi-arrow-up-short"></i> }
+                    @if (TrendDirection == "down")  { <i class="bi bi-arrow-down-short"></i> }
+                    <span>@Trend</span>
+                </div>
+            }
+        </div>
     </div>
+    @if (Spark != null && Spark.Any())
+    {
+        <Sparkline Points="Spark" Color="@SparkColor" />
+    }
 </div>
 
 @code {
     [Parameter] public string Title { get; set; } = "";
     [Parameter] public string Value { get; set; } = "";
     [Parameter] public string Accent { get; set; } = "blue";
-    [Parameter] public string Icon { get; set; } = "📊";
+    [Parameter] public string Icon { get; set; } = "bi-bar-chart";
+    [Parameter] public string? Trend { get; set; }
+    [Parameter] public string TrendDirection { get; set; } = "flat"; // up | down | flat
+    [Parameter] public List<SeriesPoint>? Spark { get; set; }
+    [Parameter] public string SparkColor { get; set; } = "#4f46e5";
 }
