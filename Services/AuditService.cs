@@ -53,6 +53,28 @@ public class AuditService
         return await q.OrderByDescending(a => a.Timestamp).Take(take).ToListAsync();
     }
 
+    public record PagedAudit(List<AuditLog> Items, int TotalCount);
+
+    public async Task<PagedAudit> SearchPagedAsync(
+        string? action, string? entityType, string? user,
+        DateTime? from, DateTime? to, int page, int pageSize)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        var q = db.AuditLogs.AsQueryable();
+        if (!string.IsNullOrEmpty(action))     q = q.Where(a => a.Action == action);
+        if (!string.IsNullOrEmpty(entityType)) q = q.Where(a => a.EntityType == entityType);
+        if (!string.IsNullOrEmpty(user))       q = q.Where(a => a.UserName == user);
+        if (from.HasValue)                     q = q.Where(a => a.Timestamp >= from.Value);
+        if (to.HasValue)                       q = q.Where(a => a.Timestamp < to.Value.AddDays(1));
+
+        var total = await q.CountAsync();
+        var items = await q.OrderByDescending(a => a.Timestamp)
+            .Skip(Math.Max(0, (page - 1) * pageSize))
+            .Take(pageSize)
+            .ToListAsync();
+        return new PagedAudit(items, total);
+    }
+
     public async Task<List<string>> GetDistinctActionsAsync()
     {
         await using var db = await _factory.CreateDbContextAsync();

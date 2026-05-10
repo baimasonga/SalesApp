@@ -16,63 +16,69 @@
 
 <div class="filter-bar">
     <label>Action
-        <select @bind="action" @bind:after="Reload">
+        <select @bind="action" @bind:after="ApplyFilter">
             <option value="">All</option>
             @foreach (var a in actions) { <option value="@a">@a</option> }
         </select>
     </label>
     <label>Entity
-        <select @bind="entityType" @bind:after="Reload">
+        <select @bind="entityType" @bind:after="ApplyFilter">
             <option value="">All</option>
             @foreach (var e in entityTypes) { <option value="@e">@e</option> }
         </select>
     </label>
     <label>User
-        <select @bind="user" @bind:after="Reload">
+        <select @bind="user" @bind:after="ApplyFilter">
             <option value="">All</option>
             @foreach (var u in users) { <option value="@u">@u</option> }
         </select>
     </label>
-    <label>From<input type="date" @bind="from" @bind:after="Reload" /></label>
-    <label>To<input type="date" @bind="to" @bind:after="Reload" /></label>
+    <label>From<input type="date" @bind="from" @bind:after="ApplyFilter" /></label>
+    <label>To<input type="date" @bind="to" @bind:after="ApplyFilter" /></label>
     <button class="btn btn-ghost btn-sm" @onclick="Clear"><i class="bi bi-x-lg"></i> Clear</button>
 </div>
 
-@if (logs == null) { <Skeleton Height="240" /> }
-else if (!logs.Any())
-{
-    <EmptyState Icon="bi-shield-check" Title="No audit events match" Description="Adjust the filters or wait for system activity." />
-}
+@if (paged == null) { <Skeleton Height="240" /> }
 else
 {
     <div class="kpi-grid" style="grid-template-columns: repeat(4, minmax(0, 1fr));">
-        <KpiCard Title="Total events"  Value="@logs.Count.ToString()"                                           Accent="indigo" Icon="bi-journal-text" />
-        <KpiCard Title="Unique users"  Value="@logs.Select(l => l.UserName).Distinct().Count().ToString()"     Accent="blue"   Icon="bi-people" />
-        <KpiCard Title="Actions"       Value="@logs.Select(l => l.Action).Distinct().Count().ToString()"       Accent="teal"   Icon="bi-lightning" />
-        <KpiCard Title="Entities"      Value="@logs.Select(l => l.EntityType).Distinct().Count().ToString()"   Accent="purple" Icon="bi-collection" />
+        <KpiCard Title="Total events"  Value="@paged.TotalCount.ToString()"                                                Accent="indigo" Icon="bi-journal-text" />
+        <KpiCard Title="Unique users"  Value="@distinctUsers.ToString()"                                                   Accent="blue"   Icon="bi-people" />
+        <KpiCard Title="Actions"       Value="@distinctActions.ToString()"                                                 Accent="teal"   Icon="bi-lightning" />
+        <KpiCard Title="Entities"      Value="@distinctEntities.ToString()"                                                Accent="purple" Icon="bi-collection" />
     </div>
 
-    <table class="table">
-        <thead><tr><th>When</th><th>User</th><th>Action</th><th>Entity</th><th>ID</th><th>Details</th></tr></thead>
-        <tbody>
-            @foreach (var l in logs)
-            {
-                <tr>
-                    <td class="tabular">@l.Timestamp.ToLocalTime().ToString("dd MMM HH:mm:ss")</td>
-                    <td>
-                        <div class="flex items-center gap-2">
-                            <Avatar Name="@l.UserName" Size="sm" />
-                            <span>@l.UserName</span>
-                        </div>
-                    </td>
-                    <td><span class="status @ActionClass(l.Action)">@l.Action</span></td>
-                    <td><code>@l.EntityType</code></td>
-                    <td class="tabular text-muted">#@l.EntityId</td>
-                    <td><span class="audit-details">@(l.Details ?? "—")</span></td>
-                </tr>
-            }
-        </tbody>
-    </table>
+    @if (!paged.Items.Any())
+    {
+        <EmptyState Icon="bi-shield-check" Title="No audit events match" Description="Adjust the filters or wait for system activity." />
+    }
+    else
+    {
+        <table class="table">
+            <thead><tr><th>When</th><th>User</th><th>Action</th><th>Entity</th><th>ID</th><th>Details</th></tr></thead>
+            <tbody>
+                @foreach (var l in paged.Items)
+                {
+                    <tr>
+                        <td class="tabular">@l.Timestamp.ToLocalTime().ToString("dd MMM HH:mm:ss")</td>
+                        <td>
+                            <div class="flex items-center gap-2">
+                                <Avatar Name="@l.UserName" Size="sm" />
+                                <span>@l.UserName</span>
+                            </div>
+                        </td>
+                        <td><span class="status @ActionClass(l.Action)">@l.Action</span></td>
+                        <td><code>@l.EntityType</code></td>
+                        <td class="tabular text-muted">#@l.EntityId</td>
+                        <td><span class="audit-details">@(l.Details ?? "—")</span></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        <Pager Page="page" PageSize="pageSize" TotalCount="paged.TotalCount"
+               PageChanged="OnPageChanged" PageSizeChanged="OnPageSizeChanged" />
+    }
 }
 
 <ConfirmDialog @bind-Open="purgeOpen"
@@ -100,16 +106,20 @@ else
 </style>
 
 @code {
-    List<AuditLog>? logs;
+    AuditService.PagedAudit? paged;
     List<string> actions = new();
     List<string> entityTypes = new();
     List<string> users = new();
+    int distinctUsers, distinctActions, distinctEntities;
 
     string action = "";
     string entityType = "";
     string user = "";
     DateTime? from;
     DateTime? to;
+
+    int page = 1;
+    int pageSize = 25;
 
     bool purgeOpen;
     int purgeDays = 365;
@@ -138,16 +148,38 @@ else
         await Reload();
     }
 
-    async Task Reload() => logs = await Audit.SearchAsync(
-        string.IsNullOrEmpty(action) ? null : action,
-        string.IsNullOrEmpty(entityType) ? null : entityType,
-        string.IsNullOrEmpty(user) ? null : user,
-        from, to, 1000);
+    async Task Reload()
+    {
+        paged = await Audit.SearchPagedAsync(
+            string.IsNullOrEmpty(action) ? null : action,
+            string.IsNullOrEmpty(entityType) ? null : entityType,
+            string.IsNullOrEmpty(user) ? null : user,
+            from, to, page, pageSize);
+
+        distinctActions  = actions.Count;
+        distinctEntities = entityTypes.Count;
+        distinctUsers    = users.Count;
+
+        // Guard: if a filter reduced totals, ensure current page is still valid
+        var maxPage = paged.TotalCount == 0 ? 1 : (int)Math.Ceiling((double)paged.TotalCount / pageSize);
+        if (page > maxPage) { page = maxPage; paged = await Audit.SearchPagedAsync(
+            string.IsNullOrEmpty(action) ? null : action,
+            string.IsNullOrEmpty(entityType) ? null : entityType,
+            string.IsNullOrEmpty(user) ? null : user,
+            from, to, page, pageSize); }
+    }
+
+    /// <summary>Reset to page 1 when filter changes.</summary>
+    async Task ApplyFilter() { page = 1; await Reload(); }
+
+    async Task OnPageChanged(int newPage) { page = newPage; await Reload(); }
+    async Task OnPageSizeChanged(int newSize) { pageSize = newSize; page = 1; await Reload(); }
 
     async Task Clear()
     {
         action = entityType = user = "";
         from = to = null;
+        page = 1;
         await Reload();
     }
 

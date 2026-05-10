@@ -1,0 +1,136 @@
+@if (TotalCount > 0)
+{
+    <div class="pager">
+        <div class="pager-meta">
+            Showing <strong>@from</strong>–<strong>@to</strong> of <strong>@TotalCount</strong>
+        </div>
+
+        <div class="pager-controls">
+            <select class="pager-size" @bind="PageSize" @bind:after="OnSizeChange">
+                @foreach (var s in PageSizes)
+                {
+                    <option value="@s">@s / page</option>
+                }
+            </select>
+
+            <button class="btn btn-sm" disabled="@(Page <= 1)" @onclick="() => Go(Page - 1)" title="Previous">
+                <i class="bi bi-chevron-left"></i>
+            </button>
+
+            @foreach (var n in PageNumbers())
+            {
+                if (n == -1)
+                {
+                    <span class="pager-ellipsis">…</span>
+                }
+                else
+                {
+                    var num = n;
+                    <button class="btn btn-sm pager-num @(num == Page ? "is-active" : "")" @onclick="() => Go(num)">@num</button>
+                }
+            }
+
+            <button class="btn btn-sm" disabled="@(Page >= TotalPages)" @onclick="() => Go(Page + 1)" title="Next">
+                <i class="bi bi-chevron-right"></i>
+            </button>
+        </div>
+    </div>
+}
+
+<style>
+    .pager {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 1rem; flex-wrap: wrap;
+        margin-top: 1rem;
+        padding: .75rem 1rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-xs);
+    }
+    .pager-meta { color: var(--text-muted); font-size: .82rem; }
+    .pager-meta strong { color: var(--text); font-variant-numeric: tabular-nums; }
+
+    .pager-controls { display: flex; align-items: center; gap: .35rem; }
+    .pager-size {
+        padding: .3rem .55rem;
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius);
+        background: var(--surface);
+        color: var(--text);
+        font-size: .8rem;
+        margin-right: .5rem;
+    }
+
+    .pager-num {
+        min-width: 32px;
+        font-variant-numeric: tabular-nums;
+        font-weight: 500;
+    }
+    .pager-num.is-active {
+        background: var(--brand);
+        color: white;
+        border-color: var(--brand);
+    }
+    .pager-num.is-active:hover { background: var(--brand-600); border-color: var(--brand-600); color: white; }
+
+    .pager-ellipsis {
+        padding: 0 .25rem;
+        color: var(--text-muted);
+        user-select: none;
+    }
+</style>
+
+@code {
+    [Parameter] public int Page { get; set; } = 1;
+    [Parameter] public int PageSize { get; set; } = 25;
+    [Parameter] public int TotalCount { get; set; }
+    [Parameter] public EventCallback<int> PageChanged { get; set; }
+    [Parameter] public EventCallback<int> PageSizeChanged { get; set; }
+    [Parameter] public int[] PageSizes { get; set; } = new[] { 10, 25, 50, 100 };
+
+    int TotalPages => TotalCount == 0 ? 0 : (int)Math.Ceiling((double)TotalCount / PageSize);
+    int from => TotalCount == 0 ? 0 : (Page - 1) * PageSize + 1;
+    int to   => Math.Min(Page * PageSize, TotalCount);
+
+    async Task Go(int p)
+    {
+        if (p < 1 || p > TotalPages || p == Page) return;
+        await PageChanged.InvokeAsync(p);
+    }
+
+    async Task OnSizeChange()
+    {
+        await PageSizeChanged.InvokeAsync(PageSize);
+    }
+
+    /// <summary>
+    /// Page-number sequence with -1 as ellipsis marker.
+    /// Pattern: 1 … 4 [5] 6 … 23
+    /// </summary>
+    IEnumerable<int> PageNumbers()
+    {
+        var tp = TotalPages;
+        if (tp <= 1) { yield return 1; yield break; }
+        if (tp <= 7)
+        {
+            for (int i = 1; i <= tp; i++) yield return i;
+            yield break;
+        }
+
+        var shown = new SortedSet<int> { 1, tp, Page };
+        if (Page > 1) shown.Add(Page - 1);
+        if (Page < tp) shown.Add(Page + 1);
+        if (Page <= 3) { shown.Add(2); shown.Add(3); shown.Add(4); }
+        if (Page >= tp - 2) { shown.Add(tp - 1); shown.Add(tp - 2); shown.Add(tp - 3); }
+        shown.RemoveWhere(x => x < 1 || x > tp);
+
+        int prev = 0;
+        foreach (var n in shown)
+        {
+            if (prev != 0 && n - prev > 1) yield return -1;
+            yield return n;
+            prev = n;
+        }
+    }
+}
