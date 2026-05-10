@@ -23,6 +23,16 @@ public class ExpenseService
         return await q.OrderByDescending(e => e.Date).ToListAsync();
     }
 
+    public async Task<PagedResult<Expense>> GetPagedAsync(int page, int pageSize, DateTime? from = null, DateTime? to = null, string? category = null)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        var q = db.Expenses.Include(e => e.Store).AsQueryable();
+        if (from.HasValue) q = q.Where(e => e.Date >= from.Value);
+        if (to.HasValue)   q = q.Where(e => e.Date < to.Value.AddDays(1));
+        if (!string.IsNullOrWhiteSpace(category)) q = q.Where(e => e.Category == category);
+        return await q.OrderByDescending(e => e.Date).ToPagedAsync(page, pageSize);
+    }
+
     public async Task<int> SaveAsync(Expense e)
     {
         await using var db = await _factory.CreateDbContextAsync();

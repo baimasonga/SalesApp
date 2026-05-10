@@ -1,11 +1,19 @@
 using Microsoft.EntityFrameworkCore;
 using SalesApp.Models;
+using SalesApp.Services;
 
 namespace SalesApp.Data;
 
 public class SalesDbContext : DbContext
 {
-    public SalesDbContext(DbContextOptions<SalesDbContext> options) : base(options) { }
+    private readonly TenantContext? _tenant;
+
+    // Single constructor — TenantContext is optional so the factory can still
+    // create contexts during seeding before any circuit/tenant is established.
+    public SalesDbContext(DbContextOptions<SalesDbContext> options, TenantContext? tenant = null) : base(options)
+    {
+        _tenant = tenant;
+    }
 
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<Store> Stores => Set<Store>();
@@ -31,6 +39,8 @@ public class SalesDbContext : DbContext
     public DbSet<LayawayPayment> LayawayPayments => Set<LayawayPayment>();
     public DbSet<Tenant> Tenants => Set<Tenant>();
     public DbSet<Setting> Settings => Set<Setting>();
+    public DbSet<MoMoTransaction> MoMoTransactions => Set<MoMoTransaction>();
+    public DbSet<SmsLog> SmsLogs => Set<SmsLog>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -40,6 +50,7 @@ public class SalesDbContext : DbContext
         b.Entity<StockTransfer>().HasIndex(s => s.TransferNumber).IsUnique();
         b.Entity<Quotation>().HasIndex(s => s.QuoteNumber).IsUnique();
         b.Entity<Layaway>().HasIndex(l => l.LayawayNumber).IsUnique();
+        b.Entity<MoMoTransaction>().HasIndex(m => m.TransactionId).IsUnique();
 
         b.Entity<InventoryItem>()
             .HasIndex(i => new { i.StoreId, i.ProductId }).IsUnique();
@@ -52,6 +63,15 @@ public class SalesDbContext : DbContext
             .HasOne(t => t.ToStore).WithMany().HasForeignKey(t => t.ToStoreId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        // ---- Multi-tenant global query filter ----
+        // Applied to every entity implementing ITenantScoped. When TenantContext is
+        // injected, queries auto-restrict to the current tenant. When Enabled is
+        // false, the filter trivially matches everything (TenantId == TenantId).
+        b.Entity<Customer>().HasQueryFilter(c => !TenantEnabled() || c.TenantId == CurrentTenantId());
+        b.Entity<Store>()   .HasQueryFilter(s => !TenantEnabled() || s.TenantId == CurrentTenantId());
+        b.Entity<Product>() .HasQueryFilter(p => !TenantEnabled() || p.TenantId == CurrentTenantId());
+        b.Entity<Supplier>().HasQueryFilter(s => !TenantEnabled() || s.TenantId == CurrentTenantId());
+
         foreach (var prop in b.Model.GetEntityTypes()
                     .SelectMany(t => t.GetProperties())
                     .Where(p => p.ClrType == typeof(decimal) || p.ClrType == typeof(decimal?)))
@@ -60,4 +80,24 @@ public class SalesDbContext : DbContext
             prop.SetScale(2);
         }
     }
+
+    /// <summary>Auto-fill TenantId on insert for ITenantScoped entities.</summary>
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        if (_tenant != null && _tenant.Enabled)
+        {
+            foreach (var entry in ChangeTracker.Entries<ITenantScoped>())
+            {
+                if (entry.State == EntityState.Added && entry.Entity.TenantId == 0)
+                    entry.Entity.TenantId = _tenant.TenantId;
+            }
+        }
+        return base.SaveChangesAsync(cancellationToken);
+    }
+
+    // EF Core requires the filter expression to use methods that can be translated.
+    // We hide TenantContext access behind these helpers so the expression-tree compiler
+    // treats them as constants captured at filter-compile time.
+    private bool TenantEnabled() => _tenant?.Enabled ?? false;
+    private int  CurrentTenantId() => _tenant?.TenantId ?? 0;
 }

@@ -72,6 +72,15 @@ public class EmployeeService
         return await q.OrderByDescending(s => s.ClockIn).Take(200).ToListAsync();
     }
 
+    public async Task<PagedResult<Shift>> GetShiftsPagedAsync(int page, int pageSize, int? employeeId = null, int? storeId = null)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        var q = db.Shifts.Include(s => s.Employee).Include(s => s.Store).AsQueryable();
+        if (employeeId.HasValue) q = q.Where(s => s.EmployeeId == employeeId.Value);
+        if (storeId.HasValue)    q = q.Where(s => s.StoreId == storeId.Value);
+        return await q.OrderByDescending(s => s.ClockIn).ToPagedAsync(page, pageSize);
+    }
+
     public async Task ClockInAsync(int employeeId, int storeId)
     {
         await using var db = await _factory.CreateDbContextAsync();

@@ -9,6 +9,22 @@ public class CrmService
     private readonly IDbContextFactory<SalesDbContext> _factory;
     public CrmService(IDbContextFactory<SalesDbContext> factory) => _factory = factory;
 
+    public async Task<PagedResult<Customer>> GetCustomersPagedAsync(int page, int pageSize, string? search = null)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        var q = db.Customers.AsQueryable();
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.ToLower();
+            q = q.Where(c =>
+                c.FullName.ToLower().Contains(s) ||
+                (c.BusinessName != null && c.BusinessName.ToLower().Contains(s)) ||
+                (c.Phone != null && c.Phone.Contains(s)) ||
+                (c.Email != null && c.Email.ToLower().Contains(s)));
+        }
+        return await q.OrderBy(c => c.FullName).ToPagedAsync(page, pageSize);
+    }
+
     public async Task<List<Customer>> GetCustomersAsync(string? search = null)
     {
         await using var db = await _factory.CreateDbContextAsync();

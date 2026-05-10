@@ -2,9 +2,10 @@ using System.ComponentModel.DataAnnotations;
 
 namespace SalesApp.Models;
 
-public class Customer
+public class Customer : ITenantScoped
 {
     public int Id { get; set; }
+    public int TenantId { get; set; }
 
     [Required, StringLength(120)]
     public string FullName { get; set; } = string.Empty;

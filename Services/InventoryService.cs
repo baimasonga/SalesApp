@@ -21,6 +21,30 @@ public class InventoryService
         return await db.Products.Where(p => p.IsActive).OrderBy(p => p.Name).ToListAsync();
     }
 
+    public async Task<PagedResult<Product>> GetProductsPagedAsync(int page, int pageSize, string? search = null, string? category = null, bool includeInactive = false)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        var q = db.Products.AsQueryable();
+        if (!includeInactive) q = q.Where(p => p.IsActive);
+        if (!string.IsNullOrWhiteSpace(category)) q = q.Where(p => p.Category == category);
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.ToLower();
+            q = q.Where(p => p.Name.ToLower().Contains(s) || p.Sku.ToLower().Contains(s) ||
+                             (p.Barcode != null && p.Barcode.Contains(search)));
+        }
+        return await q.OrderBy(p => p.Name).ToPagedAsync(page, pageSize);
+    }
+
+    public async Task<PagedResult<InventoryItem>> GetInventoryPagedAsync(int page, int pageSize, int? storeId = null, bool lowOnly = false)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        var q = db.InventoryItems.Include(i => i.Product).Include(i => i.Store).AsQueryable();
+        if (storeId.HasValue) q = q.Where(i => i.StoreId == storeId.Value);
+        if (lowOnly) q = q.Where(i => i.QuantityOnHand <= i.ReorderLevel);
+        return await q.OrderBy(i => i.Store!.Name).ThenBy(i => i.Product!.Name).ToPagedAsync(page, pageSize);
+    }
+
     public async Task<List<InventoryItem>> GetInventoryAsync(int? storeId = null)
     {
         await using var db = await _factory.CreateDbContextAsync();

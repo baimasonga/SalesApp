@@ -2,7 +2,7 @@
 // Note: Blazor Server uses SignalR, so true offline mode requires Blazor WASM.
 // This SW caches static assets so the app shell loads instantly and works on flaky connections.
 
-const CACHE = 'salone-sales-v6';  // bump to invalidate cached CSS/JS after redesign
+const CACHE = 'salone-sales-v7';  // bump to invalidate cached CSS/JS after redesign
 const SHELL = [
     '/',
     '/app.css',
@@ -10,8 +10,8 @@ const SHELL = [
     '/app.js',
     '/manifest.webmanifest',
     '/favicon.png',
-    '/icons/icon-192.png',
-    '/icons/icon-512.png',
+    '/icons/icon.svg',
+    '/icons/icon-maskable.svg',
     'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css',
     'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js'
 ];

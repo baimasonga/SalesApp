@@ -49,7 +49,17 @@ public class ExportService
         return Encoding.UTF8.GetBytes(sb.ToString());
     }
 
-    /// <summary>NRA-friendly tax export: one row per sale with tax and customer info.</summary>
+    /// <summary>
+    /// NRA Monthly GST Return — formatted to mirror the standard Sierra Leone
+    /// National Revenue Authority Goods & Services Tax filing template.
+    ///
+    /// Structure:
+    ///   - Header block: taxpayer identity (TIN, business name, address), period
+    ///   - Summary block: totals (taxable sales, GST collected, exempt, credits, net payable)
+    ///   - Detail block: one row per completed invoice in the period
+    ///
+    /// Adjust column ordering / labels per your latest NRA Form 003 instruction.
+    /// </summary>
     public async Task<byte[]> NraTaxCsvAsync(DateTime from, DateTime to)
     {
         await using var db = await _factory.CreateDbContextAsync();
@@ -59,20 +69,65 @@ public class ExportService
             .OrderBy(s => s.SaleDate)
             .ToListAsync();
 
+        // Read taxpayer info from settings
+        async Task<string> S(string key, string fallback)
+        {
+            var s = await db.Settings.FindAsync(key);
+            return s?.Value ?? fallback;
+        }
+        var businessName = await S("Business.Name", "Demo Business SL");
+        var tin          = await S("Business.NraTin", "");
+        var address      = await S("Business.Address", "");
+        var phone        = await S("Business.Phone", "");
+        var email        = await S("Business.Email", "");
+
+        var taxableSales = rows.Sum(s => s.Subtotal);
+        var gstCollected = rows.Sum(s => s.Tax);
+        var totalSales   = rows.Sum(s => s.Total);
+
         var sb = new StringBuilder();
-        sb.AppendLine("InvoiceNo,Date,Store,CustomerName,CustomerType,GrossAmount,TaxableAmount,GST_15pct,TotalIncTax,Currency");
+
+        // --- Header block ---
+        sb.AppendLine("# NRA GOODS & SERVICES TAX MONTHLY RETURN");
+        sb.AppendLine($"# Generated: {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC");
+        sb.AppendLine();
+        sb.AppendLine("Taxpayer Information");
+        sb.AppendLine($"Business Name,{Csv(businessName)}");
+        sb.AppendLine($"NRA TIN,{Csv(tin)}");
+        sb.AppendLine($"Address,{Csv(address)}");
+        sb.AppendLine($"Phone,{Csv(phone)}");
+        sb.AppendLine($"Email,{Csv(email)}");
+        sb.AppendLine($"Period From,{from:yyyy-MM-dd}");
+        sb.AppendLine($"Period To,{to:yyyy-MM-dd}");
+        sb.AppendLine();
+
+        // --- Summary block ---
+        sb.AppendLine("Return Summary,Amount (NLe)");
+        sb.AppendLine($"Total taxable sales,{taxableSales.ToString("F2", CultureInfo.InvariantCulture)}");
+        sb.AppendLine($"Total GST output tax (15%),{gstCollected.ToString("F2", CultureInfo.InvariantCulture)}");
+        sb.AppendLine($"Total exempt / zero-rated sales,0.00");
+        sb.AppendLine($"Input tax credits,0.00");
+        sb.AppendLine($"Net GST payable,{gstCollected.ToString("F2", CultureInfo.InvariantCulture)}");
+        sb.AppendLine($"Invoice count,{rows.Count}");
+        sb.AppendLine();
+
+        // --- Detail block ---
+        sb.AppendLine("Invoice Detail");
+        sb.AppendLine("InvoiceNo,Date,Store,CustomerName,CustomerTIN,CustomerType,Currency,TaxableAmount,GST_15pct,TotalIncTax,PaymentMethod,TxnRef");
         foreach (var s in rows)
         {
             sb.Append(Csv(s.InvoiceNumber)).Append(',');
             sb.Append(s.SaleDate.ToString("yyyy-MM-dd")).Append(',');
             sb.Append(Csv(s.Store?.Name)).Append(',');
             sb.Append(Csv(s.Customer?.FullName ?? "Walk-in")).Append(',');
+            sb.Append(Csv("")).Append(','); // Customer TIN (not captured per-customer yet)
             sb.Append(s.Customer?.Segment.ToString() ?? "Retail").Append(',');
-            sb.Append(s.Subtotal.ToString("F2", CultureInfo.InvariantCulture)).Append(',');
+            sb.Append(s.Currency).Append(',');
             sb.Append(s.Subtotal.ToString("F2", CultureInfo.InvariantCulture)).Append(',');
             sb.Append(s.Tax.ToString("F2", CultureInfo.InvariantCulture)).Append(',');
             sb.Append(s.Total.ToString("F2", CultureInfo.InvariantCulture)).Append(',');
-            sb.Append(s.Currency).AppendLine();
+            sb.Append(s.PaymentMethod).Append(',');
+            sb.Append(Csv(s.TransactionReference)).AppendLine();
         }
         return Encoding.UTF8.GetBytes(sb.ToString());
     }

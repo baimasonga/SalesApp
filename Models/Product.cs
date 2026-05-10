@@ -2,9 +2,10 @@ using System.ComponentModel.DataAnnotations;
 
 namespace SalesApp.Models;
 
-public class Product
+public class Product : ITenantScoped
 {
     public int Id { get; set; }
+    public int TenantId { get; set; }
 
     [Required, StringLength(40)]
     public string Sku { get; set; } = string.Empty;

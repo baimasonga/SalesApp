@@ -22,6 +22,16 @@ public class QuotationService
             .OrderByDescending(q => q.QuoteDate).ToListAsync();
     }
 
+    public async Task<PagedResult<Quotation>> GetPagedAsync(int page, int pageSize, QuotationStatus? status = null)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        var q = db.Quotations
+            .Include(x => x.Customer).Include(x => x.Store).Include(x => x.Items)
+            .AsQueryable();
+        if (status.HasValue) q = q.Where(x => x.Status == status.Value);
+        return await q.OrderByDescending(x => x.QuoteDate).ToPagedAsync(page, pageSize);
+    }
+
     public async Task<Quotation?> GetAsync(int id)
     {
         await using var db = await _factory.CreateDbContextAsync();

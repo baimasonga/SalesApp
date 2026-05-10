@@ -19,6 +19,22 @@ public class SalesService
         _settings = settings;
     }
 
+    public async Task<PagedResult<Sale>> GetPagedAsync(int page, int pageSize,
+        DateTime? from = null, DateTime? to = null, int? storeId = null, SaleStatus? status = null)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        var q = db.Sales
+            .Include(s => s.Customer)
+            .Include(s => s.Store)
+            .Include(s => s.Items)
+            .AsQueryable();
+        if (from.HasValue)     q = q.Where(s => s.SaleDate >= from.Value);
+        if (to.HasValue)       q = q.Where(s => s.SaleDate < to.Value.AddDays(1));
+        if (storeId.HasValue)  q = q.Where(s => s.StoreId == storeId.Value);
+        if (status.HasValue)   q = q.Where(s => s.Status == status.Value);
+        return await q.OrderByDescending(s => s.SaleDate).ToPagedAsync(page, pageSize);
+    }
+
     public async Task<List<Sale>> GetRecentAsync(int take = 50, DateTime? from = null, DateTime? to = null, int? storeId = null)
     {
         await using var db = await _factory.CreateDbContextAsync();

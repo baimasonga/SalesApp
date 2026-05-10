@@ -16,10 +16,10 @@
 </div>
 
 <div class="filter-bar">
-    <label>From<input type="date" @bind="from" @bind:after="Reload" /></label>
-    <label>To<input type="date" @bind="to" @bind:after="Reload" /></label>
+    <label>From<input type="date" @bind="from" @bind:after="ApplyFilter" /></label>
+    <label>To<input type="date" @bind="to" @bind:after="ApplyFilter" /></label>
     <label>Store
-        <select @bind="storeId" @bind:after="Reload">
+        <select @bind="storeId" @bind:after="ApplyFilter">
             <option value="0">All stores</option>
             @if (stores != null) { @foreach (var s in stores) { <option value="@s.Id">@s.Name</option> } }
         </select>
@@ -27,21 +27,21 @@
     <button class="btn btn-ghost" @onclick="ClearFilters"><i class="bi bi-x-lg"></i> Clear</button>
 </div>
 
-@if (sales == null) { <p class="muted">Loading…</p> }
-else if (!sales.Any())
+@if (paged == null) { <Skeleton Height="240" /> }
+else if (!paged.Items.Any())
 {
-    <div class="card empty-state">
-        <i class="bi bi-receipt"></i>
-        <p>No sales match these filters.</p>
-        <a class="btn btn-primary mt-2" href="/sales/new"><i class="bi bi-plus-lg"></i> Record first sale</a>
-    </div>
+    <EmptyState Icon="bi-receipt" Title="No sales match these filters" Description="Try clearing filters, or record your first sale.">
+        <Actions>
+            <a class="btn btn-primary" href="/sales/new"><i class="bi bi-plus-lg"></i> New sale</a>
+        </Actions>
+    </EmptyState>
 }
 else
 {
     <table class="table">
         <thead><tr><th>Invoice</th><th>Date</th><th>Store</th><th>Customer</th><th>Items</th><th>Payment</th><th>Status</th><th class="text-right">Total</th><th></th></tr></thead>
         <tbody>
-            @foreach (var s in sales)
+            @foreach (var s in paged.Items)
             {
                 <tr>
                     <td><strong>@s.InvoiceNumber</strong></td>
@@ -66,6 +66,9 @@ else
             }
         </tbody>
     </table>
+
+    <Pager Page="page" PageSize="pageSize" TotalCount="paged.TotalCount"
+           PageChanged="OnPageChanged" PageSizeChanged="OnPageSizeChanged" />
 }
 
 @if (refundFor != null)
@@ -83,11 +86,13 @@ else
 }
 
 @code {
-    List<Sale>? sales;
+    PagedResult<Sale>? paged;
     List<Store>? stores;
     DateTime? from;
     DateTime? to;
     int storeId = 0;
+    int page = 1;
+    int pageSize = 25;
     Sale? refundFor;
     string refundReason = "";
 
@@ -112,12 +117,17 @@ else
 
     async Task Reload()
     {
-        sales = await SalesSvc.GetRecentAsync(200, from, to, storeId == 0 ? null : storeId);
+        paged = await SalesSvc.GetPagedAsync(page, pageSize, from, to, storeId == 0 ? null : storeId);
     }
+
+    async Task ApplyFilter() { page = 1; await Reload(); }
+    async Task OnPageChanged(int p) { page = p; await Reload(); }
+    async Task OnPageSizeChanged(int s) { pageSize = s; page = 1; await Reload(); }
 
     async Task ClearFilters()
     {
         from = null; to = null; storeId = 0;
+        page = 1;
         await Reload();
     }
 

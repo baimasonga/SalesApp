@@ -1,0 +1,137 @@
+@page "/admin/tenants"
+@rendermode InteractiveServer
+@inject IDbContextFactory<SalesDbContext> Db
+@inject TenantContext Tenant
+@inject LayoutState Layout
+@inject ToastService Toast
+
+<PageTitle>Tenants · Admin</PageTitle>
+
+<div class="page-header">
+    <div class="actions">
+        <button class="btn btn-primary" @onclick="@(() => Edit(new Tenant()))">
+            <i class="bi bi-plus-lg"></i> Add Tenant
+        </button>
+    </div>
+</div>
+
+<div class="alert-info mb-3">
+    <i class="bi bi-info-circle"></i>
+    Tenant isolation is <strong>@(Tenant.Enabled ? "enabled" : "disabled")</strong>.
+    @if (!Tenant.Enabled)
+    {
+        <span>Set <code>Tenancy:Enabled = true</code> in appsettings.json to enforce per-tenant data isolation.</span>
+    }
+    Active tenant: <strong>@Tenant.TenantName</strong> (#@Tenant.TenantId)
+</div>
+
+@if (tenants == null) { <Skeleton Height="200" /> }
+else if (!tenants.Any())
+{
+    <EmptyState Icon="bi-buildings" Title="No tenants yet">
+        <Actions>
+            <button class="btn btn-primary" @onclick="@(() => Edit(new Tenant()))">
+                <i class="bi bi-plus-lg"></i> Add the first tenant
+            </button>
+        </Actions>
+    </EmptyState>
+}
+else
+{
+    <table class="table">
+        <thead><tr><th></th><th>Name</th><th>Slug</th><th>Country</th><th>Currency</th><th>Active</th><th></th></tr></thead>
+        <tbody>
+            @foreach (var t in tenants)
+            {
+                <tr>
+                    <td>
+                        @if (t.Id == Tenant.TenantId)
+                        {
+                            <span class="status status-applied"><i class="bi bi-dot"></i> Active</span>
+                        }
+                    </td>
+                    <td><strong>@t.Name</strong></td>
+                    <td><code>@t.Slug</code></td>
+                    <td>@t.Country</td>
+                    <td>@t.DefaultCurrency</td>
+                    <td>@(t.IsActive ? "Yes" : "No")</td>
+                    <td>
+                        <div class="row-actions">
+                            @if (t.Id != Tenant.TenantId)
+                            {
+                                <button class="btn btn-sm" @onclick="() => Switch(t)" title="Switch to this tenant"><i class="bi bi-arrow-left-right"></i> Switch</button>
+                            }
+                            <button class="btn btn-sm" @onclick="() => Edit(t)" title="Edit"><i class="bi bi-pencil"></i></button>
+                        </div>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (editing != null)
+{
+    <div class="slideover-backdrop" @onclick="() => editing = null"></div>
+    <aside class="slideover">
+        <div class="slideover-head">
+            <div>
+                <h3>@(editing.Id == 0 ? "New" : "Edit") tenant</h3>
+                <p class="muted text-xs mb-0">Each tenant has its own customers, products, sales — isolated by global query filter.</p>
+            </div>
+            <button class="btn btn-ghost btn-icon" @onclick="() => editing = null"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="slideover-body">
+            <div class="form-row"><label>Name *</label><input @bind="editing.Name" /></div>
+            <div class="form-row"><label>Slug</label><input @bind="editing.Slug" placeholder="e.g. demo-business" /></div>
+            <div class="form-row"><label>Country</label><input @bind="editing.Country" /></div>
+            <div class="form-row"><label>Default currency</label>
+                <select @bind="editing.DefaultCurrency">
+                    <option>NLe</option>
+                    <option>USD</option>
+                </select>
+            </div>
+            <div class="form-row"><label>Active</label><input type="checkbox" @bind="editing.IsActive" /></div>
+        </div>
+        <div class="slideover-foot">
+            <button class="btn" @onclick="() => editing = null">Cancel</button>
+            <button class="btn btn-primary" @onclick="Save"><i class="bi bi-check-lg"></i> Save</button>
+        </div>
+    </aside>
+}
+
+@code {
+    List<Tenant>? tenants;
+    Tenant? editing;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Layout.Set("Tenants", "Multi-tenant business isolation");
+        await Reload();
+    }
+
+    async Task Reload()
+    {
+        await using var db = await Db.CreateDbContextAsync();
+        tenants = await db.Tenants.OrderBy(t => t.Name).ToListAsync();
+    }
+
+    void Edit(Tenant t) => editing = t;
+
+    async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(editing!.Name)) { Toast.Warning("Name required."); return; }
+        await using var db = await Db.CreateDbContextAsync();
+        if (editing.Id == 0) db.Tenants.Add(editing); else db.Tenants.Update(editing);
+        await db.SaveChangesAsync();
+        Toast.Success("Tenant saved.");
+        editing = null;
+        await Reload();
+    }
+
+    void Switch(Tenant t)
+    {
+        Tenant.Switch(t.Id, t.Name);
+        Toast.Success($"Switched to {t.Name}.");
+    }
+}

@@ -14,8 +14,8 @@
     </div>
 </div>
 
-@if (quotes == null) { <Skeleton Height="200" /> }
-else if (!quotes.Any())
+@if (paged == null) { <Skeleton Height="200" /> }
+else if (!paged.Items.Any())
 {
     <EmptyState Icon="bi-file-earmark-text" Title="No quotations yet" Description="Send a quote to a customer; once accepted, convert it to a sale with one click.">
         <Actions>
@@ -28,7 +28,7 @@ else
     <table class="table">
         <thead><tr><th>Quote #</th><th>Date</th><th>Customer</th><th>Valid Until</th><th class="text-right">Total</th><th>Status</th><th></th></tr></thead>
         <tbody>
-            @foreach (var q in quotes)
+            @foreach (var q in paged.Items)
             {
                 <tr>
                     <td><strong>@q.QuoteNumber</strong></td>
@@ -122,10 +122,12 @@ else
 }
 
 @code {
-    List<Quotation>? quotes;
+    PagedResult<Quotation>? paged;
     List<Customer>? customers;
     List<Store>? stores;
     List<Product>? products;
+    int page = 1;
+    int pageSize = 25;
     Quotation quote = new();
     int selectedPid; int qty = 1;
     bool showNew, saving;
@@ -136,7 +138,7 @@ else
     protected override async Task OnInitializedAsync()
     {
         Layout.Set("Quotations", "Send quotes and convert to sales");
-        quotes = await Q.GetAllAsync();
+        paged = await Q.GetPagedAsync(page, pageSize);
         customers = await Crm.GetCustomersAsync();
         stores = await Inv.GetStoresAsync();
         products = await Inv.GetProductsAsync();
@@ -170,7 +172,7 @@ else
         {
             await Q.CreateAsync(quote);
             showNew = false;
-            quotes = await Q.GetAllAsync();
+            paged = await Q.GetPagedAsync(page, pageSize);
         }
         catch (Exception ex) { error = ex.Message; }
         finally { saving = false; }
@@ -179,7 +181,7 @@ else
     async Task SetStatus(int id, QuotationStatus s)
     {
         await Q.SetStatusAsync(id, s);
-        quotes = await Q.GetAllAsync();
+        paged = await Q.GetPagedAsync(page, pageSize);
     }
 
     async Task Convert(int id)
@@ -193,7 +195,7 @@ else
     async Task DoDelete()
     {
         if (deletingQuote == null) return;
-        try { await Q.DeleteAsync(deletingQuote.Id); quotes = await Q.GetAllAsync(); }
+        try { await Q.DeleteAsync(deletingQuote.Id); paged = await Q.GetPagedAsync(page, pageSize); }
         catch (InvalidOperationException ex) { error = ex.Message; }
         finally { deletingQuote = null; }
     }

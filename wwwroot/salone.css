@@ -1177,6 +1177,21 @@ html[data-theme="dark"] .topbar { background: rgba(13, 20, 36, .85); }
     .theme-toggle { display: none; }
 }
 
+/* Offline banner — driven from app.js when navigator.onLine flips */
+#offline-banner {
+    display: none;
+    position: fixed; top: 0; left: 0; right: 0;
+    z-index: 10000;
+    padding: .55rem 1rem;
+    background: #fef3c7; color: #92400e;
+    border-bottom: 1px solid #fde68a;
+    font-size: .82rem; text-align: center;
+    box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+#offline-banner.is-visible { display: block; animation: slideDown .2s ease; }
+#offline-banner .bi { margin-right: .35rem; }
+@keyframes slideDown { from { transform: translateY(-100%); } to { transform: none; } }
+
 /* Blazor error UI */
 #blazor-error-ui {
     background: var(--danger-bg); color: #991b1b;

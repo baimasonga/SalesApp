@@ -18,11 +18,11 @@
     <div class="input-group">
         <i class="bi bi-search"></i>
         <input class="search" placeholder="Search by name, business, phone, or email…"
-               @bind="search" @bind:event="oninput" @bind:after="Reload" />
+               @bind="search" @bind:event="oninput" @bind:after="ApplyFilter" />
     </div>
 </div>
 
-@if (customers == null)
+@if (paged == null)
 {
     <div class="grid-2">
         @for (int i = 0; i < 6; i++)
@@ -31,9 +31,9 @@
         }
     </div>
 }
-else if (!customers.Any())
+else if (!paged.Items.Any())
 {
-    <EmptyState Icon="bi-people" Title="No customers yet" Description="Add your first customer to start building loyalty and tracking interactions.">
+    <EmptyState Icon="bi-people" Title="No customers match" Description="Try clearing the search, or add your first customer.">
         <Actions>
             <button class="btn btn-primary" @onclick="@(() => Edit(new Customer()))"><i class="bi bi-plus-lg"></i> Add Customer</button>
         </Actions>
@@ -42,7 +42,7 @@ else if (!customers.Any())
 else
 {
     <div class="customer-grid">
-        @foreach (var c in customers)
+        @foreach (var c in paged.Items)
         {
             <div class="customer-tile" @onclick="() => GoTo(c.Id)">
                 <Avatar Name="@c.FullName" Size="md" Color="@AvatarColor(c.Id)" />
@@ -66,6 +66,9 @@ else
             </div>
         }
     </div>
+
+    <Pager Page="page" PageSize="pageSize" TotalCount="paged.TotalCount"
+           PageChanged="OnPageChanged" PageSizeChanged="OnPageSizeChanged" />
 }
 
 @if (editing != null)
@@ -153,9 +156,11 @@ else
 @code {
     [Inject] NavigationManager Nav { get; set; } = default!;
 
-    List<Customer>? customers;
+    PagedResult<Customer>? paged;
     Customer? editing;
     string? search;
+    int page = 1;
+    int pageSize = 24;
     bool confirmDeleteOpen;
 
     static readonly string[] Palette = {
@@ -173,7 +178,10 @@ else
         await Reload();
     }
 
-    async Task Reload() => customers = await Crm.GetCustomersAsync(search);
+    async Task Reload() => paged = await Crm.GetCustomersPagedAsync(page, pageSize, search);
+    async Task ApplyFilter() { page = 1; await Reload(); }
+    async Task OnPageChanged(int p) { page = p; await Reload(); }
+    async Task OnPageSizeChanged(int s) { pageSize = s; page = 1; await Reload(); }
     void Edit(Customer c) => editing = c;
     void GoTo(int id) => Nav.NavigateTo($"/customers/{id}");
     string AvatarColor(int id) => Palette[Math.Abs(id) % Palette.Length];

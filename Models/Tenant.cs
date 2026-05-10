@@ -18,6 +18,12 @@ public class Tenant
     [StringLength(120)]
     public string? Subdomain { get; set; }
 
+    [StringLength(80)]
+    public string? Slug { get; set; }
+
+    [StringLength(80)]
+    public string Country { get; set; } = "Sierra Leone";
+
     [Phone, StringLength(30)]
     public string? Phone { get; set; }
 

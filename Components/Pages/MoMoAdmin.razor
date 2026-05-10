@@ -1,0 +1,109 @@
+@page "/admin/momo"
+@rendermode InteractiveServer
+@inject MobileMoneyService Momo
+@inject IDbContextFactory<SalesDbContext> Db
+@inject LayoutState Layout
+@inject ToastService Toast
+
+<PageTitle>Mobile Money · Admin</PageTitle>
+
+<div class="page-header"></div>
+
+<div class="grid-1-2">
+    <div class="card">
+        <h3>Simulate a confirmation</h3>
+        <p class="muted text-xs">Replays a webhook payload through the same idempotent pipeline used in production. Useful for testing without the operator.</p>
+        <div class="form-row"><label>Invoice number</label><input @bind="invoice" placeholder="INV-…" /></div>
+        <div class="form-row"><label>Operator txn ID</label><input @bind="txnId" placeholder="OM-9988776655" /></div>
+        <div class="form-row"><label>Amount (NLe)</label><input type="number" step="0.01" @bind="amount" /></div>
+        <div class="form-row"><label>Operator</label>
+            <select @bind="operatorName">
+                <option>OrangeMoney</option>
+                <option>Afrimoney</option>
+                <option>QCell</option>
+            </select>
+        </div>
+        <div class="form-row"><label>Payer phone</label><input @bind="payer" placeholder="+232 76 …" /></div>
+        <button class="btn btn-primary" @onclick="Send" disabled="@sending">
+            @if (sending) { <span><i class="bi bi-arrow-clockwise"></i> Submitting…</span> }
+            else { <span><i class="bi bi-send"></i> Submit</span> }
+        </button>
+        @if (last != null)
+        {
+            <div class="@(last == MoMoStatus.Applied ? "alert-success" : "alert-warning") mt-2">
+                Result: <strong>@last</strong>
+            </div>
+        }
+    </div>
+
+    <div class="card">
+        <h3>Recent Mobile Money transactions</h3>
+        @if (txns == null) { <Skeleton Height="160" /> }
+        else if (!txns.Any()) { <EmptyState Icon="bi-phone" Title="No MoMo transactions yet" /> }
+        else
+        {
+            <table class="table">
+                <thead><tr><th>When</th><th>Operator</th><th>Txn ID</th><th>Invoice</th><th class="text-right">Amount</th><th>Status</th></tr></thead>
+                <tbody>
+                    @foreach (var t in txns)
+                    {
+                        <tr>
+                            <td class="tabular">@t.ReceivedAt.ToLocalTime().ToString("dd MMM HH:mm")</td>
+                            <td>@t.Operator</td>
+                            <td><code class="text-xs">@t.TransactionId</code></td>
+                            <td><code class="text-xs">@t.MerchantReference</code></td>
+                            <td class="text-right">@t.Amount.ToString("N2")</td>
+                            <td><span class="status @StatusClass(t.Status)">@t.Status</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+<style>
+    .status-applied         { background: var(--success-bg); color: var(--success); }
+    .status-duplicate       { background: var(--warning-bg); color: var(--warning); }
+    .status-nomatch         { background: var(--danger-bg);  color: var(--danger); }
+    .status-invalidsignature{ background: var(--danger-bg);  color: var(--danger); }
+    .status-failed          { background: var(--danger-bg);  color: var(--danger); }
+    .status-pending         { background: var(--info-bg);    color: var(--info); }
+</style>
+
+@code {
+    string invoice = "";
+    string txnId = $"DEMO-{Guid.NewGuid().ToString("N")[..8].ToUpperInvariant()}";
+    decimal amount = 100;
+    string operatorName = "OrangeMoney";
+    string payer = "+232 76 555 010";
+    bool sending;
+    MoMoStatus? last;
+
+    List<MoMoTransaction>? txns;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Layout.Set("Mobile Money", "Simulate webhooks · review transactions");
+        await Reload();
+    }
+
+    async Task Reload() => txns = await Momo.GetRecentAsync();
+
+    async Task Send()
+    {
+        if (string.IsNullOrWhiteSpace(invoice) || string.IsNullOrWhiteSpace(txnId)) { Toast.Warning("Invoice and txn ID required."); return; }
+        sending = true; last = null;
+        try
+        {
+            last = await Momo.ConfirmAsync(new MobileMoneyService.MoMoConfirmation(invoice, txnId, amount, operatorName, payer));
+            Toast.Success($"Result: {last}");
+            txnId = $"DEMO-{Guid.NewGuid().ToString("N")[..8].ToUpperInvariant()}";
+            await Reload();
+        }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+        finally { sending = false; }
+    }
+
+    static string StatusClass(MoMoStatus s) => $"status-{s.ToString().ToLowerInvariant()}";
+}

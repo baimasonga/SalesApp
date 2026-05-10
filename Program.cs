@@ -6,6 +6,7 @@ using SalesApp.Data;
 using SalesApp.Data.Identity;
 using SalesApp.Services;
 using SalesApp.Services.Notifications;
+using SalesApp.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -60,7 +61,16 @@ builder.Services.AddScoped<LayoutState>();
 builder.Services.AddScoped<ThemeService>();
 builder.Services.AddScoped<NavDrawerState>();
 builder.Services.AddScoped<ToastService>();
-builder.Services.AddScoped<TenantContext>();
+builder.Services.AddScoped<TenantContext>(sp =>
+{
+    var cfg = sp.GetRequiredService<IConfiguration>();
+    return new TenantContext
+    {
+        Enabled = cfg.GetValue<bool>("Tenancy:Enabled"),
+        TenantId = cfg.GetValue<int?>("Tenancy:DefaultTenantId") ?? 1,
+        TenantName = cfg["Tenancy:DefaultTenantName"] ?? "Default"
+    };
+});
 builder.Services.AddScoped<SettingsService>();
 builder.Services.AddScoped<AuditService>();
 builder.Services.AddScoped<SalesService>();
@@ -78,6 +88,7 @@ builder.Services.AddScoped<LayawayService>();
 
 // Notifications (SMS + Mobile Money)
 builder.Services.AddHttpClient<INotificationService, AfricellSmsService>();
+builder.Services.AddHttpClient<WhatsAppBusinessService>();
 builder.Services.AddScoped<MobileMoneyService>();
 
 var app = builder.Build();
@@ -141,6 +152,16 @@ app.MapPost("/webhook/momo", async (HttpContext ctx, MobileMoneyService momo, IC
     using var reader = new StreamReader(ctx.Request.Body);
     var raw = await reader.ReadToEndAsync();
 
+    // Parse body so we have invoice/txn id available even when signature fails
+    string invoiceNum = "", txnId = "";
+    try
+    {
+        var parsed = JsonDocument.Parse(raw).RootElement;
+        invoiceNum = parsed.TryGetProperty("merchantReference", out var mr) ? mr.GetString() ?? "" : "";
+        txnId      = parsed.TryGetProperty("transactionId", out var ti) ? ti.GetString() ?? "" : "";
+    }
+    catch { /* logged below */ }
+
     // Optional signature check
     var secret = cfg["MoMo:WebhookSecret"];
     if (!string.IsNullOrEmpty(secret))
@@ -150,7 +171,10 @@ app.MapPost("/webhook/momo", async (HttpContext ctx, MobileMoneyService momo, IC
             System.Text.Encoding.UTF8.GetBytes(secret),
             System.Text.Encoding.UTF8.GetBytes(raw))).ToLowerInvariant();
         if (!string.Equals(sig, expected, StringComparison.OrdinalIgnoreCase))
+        {
+            await momo.LogInvalidSignatureAsync(invoiceNum, txnId, "HMAC mismatch");
             return Results.Unauthorized();
+        }
     }
 
     try
@@ -163,8 +187,14 @@ app.MapPost("/webhook/momo", async (HttpContext ctx, MobileMoneyService momo, IC
             Operator: doc.TryGetProperty("operator", out var o) ? o.GetString() ?? "MoMo" : "MoMo",
             PayerPhone: doc.TryGetProperty("payerPhone", out var p) ? p.GetString() ?? "" : ""
         );
-        var ok = await momo.ConfirmAsync(msg);
-        return ok ? Results.Ok(new { confirmed = true }) : Results.NotFound(new { error = "invoice not found" });
+        var status = await momo.ConfirmAsync(msg);
+        return status switch
+        {
+            MoMoStatus.Applied    => Results.Ok(new      { confirmed = true,  status = "applied" }),
+            MoMoStatus.Duplicate  => Results.Ok(new      { confirmed = false, status = "duplicate" }),
+            MoMoStatus.NoMatch    => Results.NotFound(new{ confirmed = false, status = "no-match", error = "invoice not found" }),
+            _                     => Results.BadRequest(new { confirmed = false, status = status.ToString() })
+        };
     }
     catch (Exception ex)
     {

@@ -137,3 +137,24 @@ if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/service-worker.js').catch(() => { });
     });
 }
+
+// Online/offline detection — toggles a banner at the top of the page
+(function () {
+    function ensureBanner() {
+        let el = document.getElementById('offline-banner');
+        if (el) return el;
+        el = document.createElement('div');
+        el.id = 'offline-banner';
+        el.innerHTML = '<i class="bi bi-wifi-off"></i> <span>You\\'re offline. Some features need a connection — we\\'ll auto-reconnect.</span>';
+        document.body.appendChild(el);
+        return el;
+    }
+    function update() {
+        const el = ensureBanner();
+        el.classList.toggle('is-visible', !navigator.onLine);
+    }
+    window.addEventListener('online', update);
+    window.addEventListener('offline', update);
+    document.addEventListener('DOMContentLoaded', update);
+    update();
+})();

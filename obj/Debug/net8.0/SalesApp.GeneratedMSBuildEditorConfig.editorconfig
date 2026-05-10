@@ -74,6 +74,10 @@ build_metadata.AdditionalFiles.CssScope =
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xMb2dpbi5yYXpvcg==
 build_metadata.AdditionalFiles.CssScope = 
 
+[C:/Users/SECAP Training/Documents/GitHub/SalesApp/Components/Pages/MoMoAdmin.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xNb01vQWRtaW4ucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
 [C:/Users/SECAP Training/Documents/GitHub/SalesApp/Components/Pages/NewPurchaseOrder.razor]
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xOZXdQdXJjaGFzZU9yZGVyLnJhem9y
 build_metadata.AdditionalFiles.CssScope = 
@@ -122,6 +126,10 @@ build_metadata.AdditionalFiles.CssScope =
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xTaGlmdHMucmF6b3I=
 build_metadata.AdditionalFiles.CssScope = 
 
+[C:/Users/SECAP Training/Documents/GitHub/SalesApp/Components/Pages/SmsAdmin.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xTbXNBZG1pbi5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
 [C:/Users/SECAP Training/Documents/GitHub/SalesApp/Components/Pages/StockTake.razor]
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xTdG9ja1Rha2UucmF6b3I=
 build_metadata.AdditionalFiles.CssScope = 
@@ -136,6 +144,10 @@ build_metadata.AdditionalFiles.CssScope =
 
 [C:/Users/SECAP Training/Documents/GitHub/SalesApp/Components/Pages/Suppliers.razor]
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xTdXBwbGllcnMucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/SECAP Training/Documents/GitHub/SalesApp/Components/Pages/Tenants.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xUZW5hbnRzLnJhem9y
 build_metadata.AdditionalFiles.CssScope = 
 
 [C:/Users/SECAP Training/Documents/GitHub/SalesApp/Components/Routes.razor]

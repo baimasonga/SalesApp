@@ -37,6 +37,14 @@
       "PackagePath": "staticwebassets\\icons\\icon-512.png"
     },
     {
+      "Id": "C:\\Users\\SECAP Training\\Documents\\GitHub\\SalesApp\\wwwroot\\icons\\icon-maskable.svg",
+      "PackagePath": "staticwebassets\\icons\\icon-maskable.svg"
+    },
+    {
+      "Id": "C:\\Users\\SECAP Training\\Documents\\GitHub\\SalesApp\\wwwroot\\icons\\icon.svg",
+      "PackagePath": "staticwebassets\\icons\\icon.svg"
+    },
+    {
       "Id": "C:\\Users\\SECAP Training\\Documents\\GitHub\\SalesApp\\wwwroot\\manifest.webmanifest",
       "PackagePath": "staticwebassets\\manifest.webmanifest"
     },

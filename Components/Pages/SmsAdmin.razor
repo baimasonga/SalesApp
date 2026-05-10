@@ -1,0 +1,98 @@
+@page "/admin/sms"
+@rendermode InteractiveServer
+@inject INotificationService Notif
+@inject IDbContextFactory<SalesDbContext> Db
+@inject LayoutState Layout
+@inject ToastService Toast
+
+<PageTitle>SMS · Admin</PageTitle>
+
+<div class="page-header"></div>
+
+<div class="grid-1-2">
+    <div class="card">
+        <h3>Send test SMS</h3>
+        <p class="muted text-xs">Uses the configured Africell gateway. If <code>SMS:ApiKey</code> is empty, runs in demo mode and persists a log row marked <em>DemoMode</em>.</p>
+        <div class="form-row"><label>Phone</label><input @bind="phone" placeholder="+232 76 555 010" /></div>
+        <div class="form-row"><label>Message</label><textarea rows="3" @bind="message"></textarea></div>
+        <button class="btn btn-primary" @onclick="Send" disabled="@sending">
+            @if (sending) { <span><i class="bi bi-arrow-clockwise"></i> Sending…</span> }
+            else { <span><i class="bi bi-send"></i> Send</span> }
+        </button>
+        @if (lastResult != null)
+        {
+            <div class="@(lastResult.Success ? "alert-success" : "error") mt-2">
+                @(lastResult.Success ? "Sent" : "Failed") · provider=@lastResult.Provider
+                @(lastResult.MessageId is null ? "" : $"· ref={lastResult.MessageId}")
+                @(lastResult.Error is null ? "" : $"· {lastResult.Error}")
+            </div>
+        }
+    </div>
+
+    <div class="card">
+        <h3>Recent SMS</h3>
+        @if (logs == null) { <Skeleton Height="160" /> }
+        else if (!logs.Any()) { <EmptyState Icon="bi-chat-left-dots" Title="No SMS sent yet" /> }
+        else
+        {
+            <table class="table">
+                <thead><tr><th>When</th><th>Phone</th><th>Message</th><th>Status</th><th>Provider Ref</th></tr></thead>
+                <tbody>
+                    @foreach (var l in logs)
+                    {
+                        <tr>
+                            <td class="tabular">@l.SentAt.ToLocalTime().ToString("dd MMM HH:mm")</td>
+                            <td class="tabular">@l.Phone</td>
+                            <td class="muted text-xs" style="max-width:300px">@l.Message</td>
+                            <td><span class="status @StatusClass(l.Status)">@l.Status</span></td>
+                            <td><code class="text-xs">@l.ProviderReference</code></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+<style>
+    .status-sent      { background: var(--success-bg); color: var(--success); }
+    .status-failed    { background: var(--danger-bg);  color: var(--danger); }
+    .status-demomode  { background: var(--info-bg);    color: var(--info); }
+    .status-pending   { background: var(--warning-bg); color: var(--warning); }
+</style>
+
+@code {
+    string phone = "+232 76 555 010";
+    string message = "Tenki for shopping with Salone Sales!";
+    bool sending;
+    NotificationResult? lastResult;
+    List<SmsLog>? logs;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Layout.Set("SMS administration", "Test sends and review delivery history");
+        await Reload();
+    }
+
+    async Task Reload()
+    {
+        await using var db = await Db.CreateDbContextAsync();
+        logs = await db.SmsLogs.OrderByDescending(s => s.SentAt).Take(50).ToListAsync();
+    }
+
+    async Task Send()
+    {
+        if (string.IsNullOrWhiteSpace(phone) || string.IsNullOrWhiteSpace(message)) { Toast.Warning("Phone and message required."); return; }
+        sending = true; lastResult = null;
+        try
+        {
+            lastResult = await Notif.SendSmsAsync(phone, message);
+            if (lastResult.Success) Toast.Success("SMS sent (or queued in demo mode).");
+            else Toast.Error(lastResult.Error ?? "Failed");
+            await Reload();
+        }
+        finally { sending = false; }
+    }
+
+    static string StatusClass(SmsStatus s) => $"status-{s.ToString().ToLowerInvariant()}";
+}
