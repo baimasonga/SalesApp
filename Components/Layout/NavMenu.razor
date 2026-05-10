@@ -22,34 +22,67 @@
 </div>
 
 <nav class="nav">
-    @foreach (var sec in Sections)
+    @if (!string.IsNullOrWhiteSpace(filter))
     {
-        var visibleItems = sec.Items.Where(i => Matches(i)).ToArray();
-        if (visibleItems.Length == 0) continue;
-
-        if (sec.Label != null)
+        var matches = AllSections
+            .SelectMany(s => s.Items)
+            .Where(i => i.Label.Contains(filter, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        if (!matches.Any())
         {
-            <div class="nav-section">@sec.Label</div>
+            <div class="nav-empty"><i class="bi bi-emoji-frown"></i> No results</div>
         }
-        @foreach (var item in visibleItems)
+        else
         {
-            <a href="@item.Href" class="nav-item @(IsActive(item.Href) ? "active" : "")">
-                <i class="bi @item.Icon"></i>
-                <span>@item.Label</span>
-                @if (item.Badge is not null)
-                {
-                    <span class="nav-badge">@item.Badge</span>
-                }
-            </a>
+            @foreach (var item in matches)
+            {
+                <a href="@item.Href" class="nav-item @(IsActive(item.Href) ? "active" : "")">
+                    <i class="bi @item.Icon"></i>
+                    <span>@item.Label</span>
+                </a>
+            }
         }
     }
-
-    @if (Sections.SelectMany(s => s.Items).All(i => !Matches(i)))
+    else
     {
-        <div class="nav-empty">
-            <i class="bi bi-emoji-frown"></i>
-            No results
-        </div>
+        @foreach (var sec in AllSections)
+        {
+            if (sec.Label == null)
+            {
+                @foreach (var item in sec.Items)
+                {
+                    <a href="@item.Href" class="nav-item @(IsActive(item.Href) ? "active" : "")">
+                        <i class="bi @item.Icon"></i>
+                        <span>@item.Label</span>
+                    </a>
+                }
+            }
+            else
+            {
+                var isOpen = openSections.Contains(sec.Key);
+                var hasActive = sec.Items.Any(i => IsActive(i.Href));
+                <div class="nav-group @(isOpen ? "open" : "") @(hasActive ? "has-active" : "")">
+                    <button class="nav-group-toggle" @onclick="() => Toggle(sec.Key)" type="button">
+                        <i class="bi @sec.Icon"></i>
+                        <span>@sec.Label</span>
+                        @if (hasActive && !isOpen)
+                        {
+                            <span class="nav-active-dot" aria-hidden="true"></span>
+                        }
+                        <i class="bi bi-chevron-down chevron"></i>
+                    </button>
+                    <div class="nav-group-items">
+                        @foreach (var item in sec.Items)
+                        {
+                            <a href="@item.Href" class="nav-item @(IsActive(item.Href) ? "active" : "")">
+                                <i class="bi @item.Icon"></i>
+                                <span>@item.Label</span>
+                            </a>
+                        }
+                    </div>
+                </div>
+            }
+        }
     }
 </nav>
 
@@ -64,49 +97,52 @@
 </div>
 
 @code {
-    record NavItem(string Label, string Href, string Icon, string? Badge = null);
-    record NavSection(string? Label, NavItem[] Items);
+    record NavItem(string Label, string Href, string Icon);
+    record NavSection(string Key, string? Label, string? Icon, NavItem[] Items);
 
-    static readonly NavSection[] Sections = new[]
+    static readonly NavSection[] AllSections = new[]
     {
-        new NavSection(null, new[]
+        new NavSection("overview", null, null, new[]
         {
-            new NavItem("Dashboard",   "/",         "bi-grid-1x2-fill"),
-            new NavItem("Reports",     "/reports",  "bi-graph-up-arrow"),
-            new NavItem("Targets",     "/targets",  "bi-bullseye"),
+            new NavItem("Dashboard", "/", "bi-grid-1x2-fill"),
         }),
-        new NavSection("Sales", new[]
+        new NavSection("sales", "Sales", "bi-receipt", new[]
         {
-            new NavItem("All Sales",   "/sales",       "bi-receipt"),
+            new NavItem("All Sales",   "/sales",       "bi-list-ul"),
             new NavItem("New Sale",    "/sales/new",   "bi-plus-circle"),
             new NavItem("Quotations",  "/quotations",  "bi-file-earmark-text"),
             new NavItem("Layaways",    "/layaways",    "bi-piggy-bank"),
         }),
-        new NavSection("Inventory", new[]
+        new NavSection("analytics", "Analytics", "bi-graph-up-arrow", new[]
         {
-            new NavItem("Products",      "/products",    "bi-tag"),
-            new NavItem("Stock Levels",  "/inventory",   "bi-box-seam"),
-            new NavItem("Reorder",       "/reorder",     "bi-exclamation-triangle"),
-            new NavItem("Stock Take",    "/stock-take",  "bi-list-check"),
-            new NavItem("Transfers",     "/transfers",   "bi-arrow-left-right"),
+            new NavItem("Reports",        "/reports", "bi-bar-chart"),
+            new NavItem("Sales Targets",  "/targets", "bi-bullseye"),
         }),
-        new NavSection("Procurement", new[]
+        new NavSection("inventory", "Inventory", "bi-box-seam", new[]
         {
-            new NavItem("Suppliers",        "/suppliers",        "bi-building"),
-            new NavItem("Purchase Orders",  "/purchase-orders",  "bi-cart3"),
+            new NavItem("Products",       "/products",   "bi-tag"),
+            new NavItem("Stock Levels",   "/inventory",  "bi-clipboard-data"),
+            new NavItem("Reorder Report", "/reorder",    "bi-exclamation-triangle"),
+            new NavItem("Stock Take",     "/stock-take", "bi-list-check"),
+            new NavItem("Stock Transfers","/transfers",  "bi-arrow-left-right"),
         }),
-        new NavSection("CRM", new[]
+        new NavSection("procurement", "Procurement", "bi-truck", new[]
         {
-            new NavItem("Customers", "/customers", "bi-people"),
+            new NavItem("Suppliers",       "/suppliers",       "bi-building"),
+            new NavItem("Purchase Orders", "/purchase-orders", "bi-cart3"),
         }),
-        new NavSection("Finance & HR", new[]
+        new NavSection("crm", "Customers (CRM)", "bi-people", new[]
+        {
+            new NavItem("All Customers", "/customers", "bi-person-lines-fill"),
+        }),
+        new NavSection("finance", "Finance & HR", "bi-bank", new[]
         {
             new NavItem("Expenses",     "/expenses",     "bi-cash-stack"),
             new NavItem("Employees",    "/employees",    "bi-person-badge"),
             new NavItem("Shifts",       "/shifts",       "bi-clock-history"),
             new NavItem("Commissions",  "/commissions",  "bi-cash-coin"),
         }),
-        new NavSection("Admin", new[]
+        new NavSection("admin", "Administration", "bi-gear", new[]
         {
             new NavItem("Stores",     "/stores", "bi-shop"),
             new NavItem("Audit Log",  "/audit",  "bi-shield-check"),
@@ -115,24 +151,42 @@
 
     string filter = "";
     string currentUri = "";
+    HashSet<string> openSections = new();
+    string? lastActiveKey;
 
     protected override void OnInitialized()
     {
         currentUri = Nav.Uri;
         Nav.LocationChanged += OnLocationChanged;
+        AutoOpenActive();
     }
 
     void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
     {
         currentUri = e.Location;
+        AutoOpenActive();
         StateHasChanged();
     }
 
-    bool Matches(NavItem item)
+    /// <summary>
+    /// When the user navigates into a different section, auto-expand it.
+    /// User can still close it manually afterwards.
+    /// </summary>
+    void AutoOpenActive()
     {
-        if (string.IsNullOrWhiteSpace(filter)) return true;
-        var f = filter.Trim();
-        return item.Label.Contains(f, StringComparison.OrdinalIgnoreCase);
+        var active = AllSections
+            .Where(s => s.Label != null)
+            .FirstOrDefault(s => s.Items.Any(i => IsActive(i.Href)));
+        if (active != null && active.Key != lastActiveKey)
+        {
+            openSections.Add(active.Key);
+            lastActiveKey = active.Key;
+        }
+    }
+
+    void Toggle(string key)
+    {
+        if (!openSections.Add(key)) openSections.Remove(key);
     }
 
     bool IsActive(string href)
