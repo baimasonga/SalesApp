@@ -24,16 +24,18 @@ public class AfricellSmsService : INotificationService
     private readonly IConfiguration _config;
     private readonly ILogger<AfricellSmsService> _log;
     private readonly IDbContextFactory<SalesDbContext> _factory;
+    private readonly SettingsService _settings;
 
     public AfricellSmsService(HttpClient http, IConfiguration config, ILogger<AfricellSmsService> log,
-                              IDbContextFactory<SalesDbContext> factory)
-    { _http = http; _config = config; _log = log; _factory = factory; }
+                              IDbContextFactory<SalesDbContext> factory, SettingsService settings)
+    { _http = http; _config = config; _log = log; _factory = factory; _settings = settings; }
 
     public async Task<NotificationResult> SendSmsAsync(string phone, string message, CancellationToken ct = default)
     {
-        var apiUrl = _config["SMS:ApiUrl"];
-        var apiKey = _config["SMS:ApiKey"];
-        var sender = _config["SMS:SenderId"] ?? "SaloneSales";
+        // Settings (DB) take precedence over appsettings.json
+        var apiUrl = await _settings.GetAsync(SettingKeys.SmsApiUrl)   ?? _config["SMS:ApiUrl"];
+        var apiKey = await _settings.GetAsync(SettingKeys.SmsApiKey)   ?? _config["SMS:ApiKey"];
+        var sender = await _settings.GetAsync(SettingKeys.SmsSenderId) ?? _config["SMS:SenderId"] ?? "SaloneSales";
 
         var log = new SmsLog
         {

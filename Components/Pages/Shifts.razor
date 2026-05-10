@@ -13,13 +13,13 @@
     </div>
 </div>
 
-@if (shifts == null) { <p class="muted">Loading…</p> }
+@if (paged == null) { <Skeleton Height="200" /> }
 else
 {
     <table class="table">
         <thead><tr><th>Employee</th><th>Store</th><th>Clock In</th><th>Clock Out</th><th>Duration</th><th></th></tr></thead>
         <tbody>
-            @foreach (var s in shifts)
+            @foreach (var s in paged.Items)
             {
                 var dur = (s.ClockOut ?? DateTime.UtcNow) - s.ClockIn;
                 <tr>
@@ -45,6 +45,9 @@ else
             }
         </tbody>
     </table>
+
+    <Pager Page="page" PageSize="pageSize" TotalCount="paged.TotalCount"
+           PageChanged="OnPageChanged" PageSizeChanged="OnPageSizeChanged" />
 }
 
 @if (editingShift != null)
@@ -99,7 +102,9 @@ else
 }
 
 @code {
-    List<Shift>? shifts;
+    PagedResult<Shift>? paged;
+    int page = 1;
+    int pageSize = 25;
     List<Employee>? employees;
     List<Store>? stores;
     bool showClockIn;
@@ -117,10 +122,13 @@ else
 
     async Task Reload()
     {
-        shifts = await Emp.GetShiftsAsync();
+        paged = await Emp.GetShiftsPagedAsync(page, pageSize);
         employees = await Emp.GetAllAsync();
         stores = await Inv.GetStoresAsync();
     }
+
+    async Task OnPageChanged(int p) { page = p; await Reload(); }
+    async Task OnPageSizeChanged(int s) { pageSize = s; page = 1; await Reload(); }
 
     async Task DoClockIn()
     {

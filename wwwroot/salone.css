@@ -1177,6 +1177,35 @@ html[data-theme="dark"] .topbar { background: rgba(13, 20, 36, .85); }
     .theme-toggle { display: none; }
 }
 
+/* Global error boundary */
+.error-boundary {
+    max-width: 560px;
+    margin: 3rem auto;
+    text-align: center;
+    padding: 2rem 1.5rem;
+    background: var(--surface);
+    border: 1px solid var(--danger-border);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-md);
+}
+.error-boundary .empty-icon { background: var(--danger-bg); color: var(--danger); width: 64px; height: 64px; margin: 0 auto 1rem; }
+.error-boundary h2 { margin: 0 0 .35rem; }
+.error-boundary .actions { display: flex; gap: .5rem; justify-content: center; margin-top: 1.5rem; }
+.error-trace {
+    margin: 1.25rem 0;
+    text-align: left;
+    font-size: .8rem;
+}
+.error-trace summary { cursor: pointer; color: var(--text-muted); padding: .35rem; }
+.error-trace pre {
+    background: var(--surface-2);
+    padding: .75rem;
+    border-radius: var(--radius);
+    overflow-x: auto;
+    margin: .5rem 0 0;
+    color: var(--danger);
+}
+
 /* Offline banner — driven from app.js when navigator.onLine flips */
 #offline-banner {
     display: none;

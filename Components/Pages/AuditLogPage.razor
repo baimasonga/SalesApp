@@ -59,7 +59,7 @@ else
             <tbody>
                 @foreach (var l in paged.Items)
                 {
-                    <tr>
+                    <tr style="cursor:pointer" @onclick="() => Open(l)">
                         <td class="tabular">@l.Timestamp.ToLocalTime().ToString("dd MMM HH:mm:ss")</td>
                         <td>
                             <div class="flex items-center gap-2">
@@ -80,6 +80,55 @@ else
                PageChanged="OnPageChanged" PageSizeChanged="OnPageSizeChanged" />
     }
 }
+
+@if (detail != null)
+{
+    <div class="slideover-backdrop" @onclick="() => detail = null"></div>
+    <aside class="slideover">
+        <div class="slideover-head">
+            <div>
+                <h3>Audit event</h3>
+                <p class="muted text-xs mb-0">@detail.Timestamp.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss")</p>
+            </div>
+            <button class="btn btn-ghost btn-icon" @onclick="() => detail = null"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="slideover-body">
+            <div class="audit-meta-grid">
+                <div><label>User</label><div class="flex items-center gap-2"><Avatar Name="@detail.UserName" Size="sm" /><strong>@detail.UserName</strong></div></div>
+                <div><label>Action</label><span class="status @ActionClass(detail.Action)">@detail.Action</span></div>
+                <div><label>Entity</label><code>@detail.EntityType</code></div>
+                <div><label>Entity ID</label><code>#@detail.EntityId</code></div>
+            </div>
+
+            <div class="form-section">
+                <div class="form-section-title">Change details</div>
+                @if (string.IsNullOrEmpty(detail.Details))
+                {
+                    <p class="muted">No additional details captured.</p>
+                }
+                else
+                {
+                    <div class="audit-diff">
+                        @foreach (var part in (detail.Details ?? "").Split("; ", StringSplitOptions.RemoveEmptyEntries))
+                        {
+                            <div class="audit-diff-row">@part</div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+        <div class="slideover-foot">
+            <button class="btn" @onclick="() => detail = null">Close</button>
+        </div>
+    </aside>
+}
+
+<style>
+    .audit-meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem 1.5rem; margin-bottom: 1.5rem; }
+    .audit-meta-grid label { display:block; font-size: .7rem; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); margin-bottom: .25rem; font-weight: 600; }
+    .audit-diff { display: flex; flex-direction: column; gap: .35rem; font-family: ui-monospace, monospace; font-size: .82rem; }
+    .audit-diff-row { padding: .55rem .75rem; background: var(--surface-2); border-left: 3px solid var(--brand); border-radius: var(--radius-sm); word-break: break-word; }
+</style>
 
 <ConfirmDialog @bind-Open="purgeOpen"
                Title="Purge old audit entries?"
@@ -123,6 +172,9 @@ else
 
     bool purgeOpen;
     int purgeDays = 365;
+    AuditLog? detail;
+
+    void Open(AuditLog l) => detail = l;
 
     string CsvUrl
     {

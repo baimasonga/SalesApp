@@ -49,4 +49,12 @@ public static class SettingKeys
 
     // Audit
     public const string AuditRetentionDays = "Audit.RetentionDays"; // int
+
+    // Integrations — runtime overrides for appsettings.json
+    public const string SmsApiUrl     = "SMS.ApiUrl";
+    public const string SmsApiKey     = "SMS.ApiKey";
+    public const string SmsSenderId   = "SMS.SenderId";
+    public const string MoMoWebhookSecret = "MoMo.WebhookSecret";
+    public const string WhatsAppAccessToken  = "WhatsApp.AccessToken";
+    public const string WhatsAppPhoneNumberId = "WhatsApp.PhoneNumberId";
 }

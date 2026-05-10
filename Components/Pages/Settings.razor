@@ -77,21 +77,33 @@ else
 
                 case "integrations":
                     <h2>Integrations</h2>
-                    <p class="muted">SMS provider keys and Mobile Money webhook secrets live in <code>appsettings.json</code> for security. This page reads them; production should use Key Vault / environment variables.</p>
-                    <div class="alert-info"><i class="bi bi-info-circle"></i> Sensitive credentials are intentionally not editable here.</div>
+                    <p class="muted">Override the values in <code>appsettings.json</code> at runtime. Settings here take precedence. For production deployments, prefer Key Vault / environment variables for credentials.</p>
+                    <div class="form-section">
+                        <div class="form-section-title">Africell SMS</div>
+                        @SettingInput("API URL", SettingKeys.SmsApiUrl, "Aggregator endpoint (e.g. https://api.africell.sl/messages)")
+                        @SettingInput("API key", SettingKeys.SmsApiKey, "Leave blank to run in demo mode", "password")
+                        @SettingInput("Sender ID", SettingKeys.SmsSenderId, "Shown to recipient (max 11 chars)")
+                    </div>
+                    <div class="form-section">
+                        <div class="form-section-title">WhatsApp Business (Meta Cloud API)</div>
+                        @SettingInput("Access token", SettingKeys.WhatsAppAccessToken, "Permanent system-user token from Meta", "password")
+                        @SettingInput("Phone number ID", SettingKeys.WhatsAppPhoneNumberId, "The ID of your verified WABA phone")
+                    </div>
+                    <div class="form-section">
+                        <div class="form-section-title">Mobile Money</div>
+                        @SettingInput("Webhook secret", SettingKeys.MoMoWebhookSecret, "Shared secret used for HMAC verification on /webhook/momo", "password")
+                    </div>
+                    <div class="alert-warning mt-3"><i class="bi bi-shield-lock"></i> Credentials are stored in the database. Restrict access to this page in production via the AdminOnly policy.</div>
                     break;
             }
 
-            @if (activeKey != "integrations")
-            {
-                <div class="settings-actions">
-                    <button class="btn" @onclick="ResetSection" disabled="@saving"><i class="bi bi-arrow-counterclockwise"></i> Discard changes</button>
-                    <button class="btn btn-primary" @onclick="SaveSection" disabled="@saving">
-                        @if (saving) { <span><i class="bi bi-arrow-clockwise"></i> Saving…</span> }
-                        else        { <span><i class="bi bi-check-lg"></i> Save changes</span> }
-                    </button>
-                </div>
-            }
+            <div class="settings-actions">
+                <button class="btn" @onclick="ResetSection" disabled="@saving"><i class="bi bi-arrow-counterclockwise"></i> Discard changes</button>
+                <button class="btn btn-primary" @onclick="SaveSection" disabled="@saving">
+                    @if (saving) { <span><i class="bi bi-arrow-clockwise"></i> Saving…</span> }
+                    else        { <span><i class="bi bi-check-lg"></i> Save changes</span> }
+                </button>
+            </div>
         </div>
     </div>
 }
@@ -200,6 +212,12 @@ else
         [SettingKeys.ReceiptHeader]     = "Receipt",
         [SettingKeys.ReceiptFooter]     = "Receipt",
         [SettingKeys.AuditRetentionDays]= "Audit",
+        [SettingKeys.SmsApiUrl]            = "Integrations",
+        [SettingKeys.SmsApiKey]            = "Integrations",
+        [SettingKeys.SmsSenderId]          = "Integrations",
+        [SettingKeys.MoMoWebhookSecret]    = "Integrations",
+        [SettingKeys.WhatsAppAccessToken]  = "Integrations",
+        [SettingKeys.WhatsAppPhoneNumberId]= "Integrations",
     };
 
     protected override async Task OnInitializedAsync()

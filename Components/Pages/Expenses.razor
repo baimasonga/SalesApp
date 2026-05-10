@@ -17,29 +17,29 @@
 </div>
 
 <div class="filter-bar">
-    <label>From<input type="date" @bind="from" @bind:after="Reload" /></label>
-    <label>To<input type="date" @bind="to" @bind:after="Reload" /></label>
+    <label>From<input type="date" @bind="from" @bind:after="ApplyFilter" /></label>
+    <label>To<input type="date" @bind="to" @bind:after="ApplyFilter" /></label>
 </div>
 
-@if (expenses == null) { <p class="muted">Loading…</p> }
+@if (paged == null) { <Skeleton Height="200" /> }
 else
 {
     <div class="kpi-grid">
-        <KpiCard Title="Total Expenses" Value="@Money.Format(expenses.Sum(e => e.Amount))" Accent="red" Icon="bi-cash-stack" />
-        <KpiCard Title="Entries" Value="@expenses.Count.ToString()" Accent="indigo" Icon="bi-journal-text" />
-        <KpiCard Title="Categories" Value="@expenses.Select(e => e.Category).Distinct().Count().ToString()" Accent="orange" Icon="bi-tags" />
+        <KpiCard Title="Total (page)" Value="@Money.Format(paged.Items.Sum(e => e.Amount))" Accent="red" Icon="bi-cash-stack" />
+        <KpiCard Title="Entries (filtered)" Value="@paged.TotalCount.ToString()" Accent="indigo" Icon="bi-journal-text" />
+        <KpiCard Title="Categories (page)" Value="@paged.Items.Select(e => e.Category).Distinct().Count().ToString()" Accent="orange" Icon="bi-tags" />
     </div>
 
-    @if (!expenses.Any())
+    @if (!paged.Items.Any())
     {
-        <div class="card empty-state"><i class="bi bi-cash-stack"></i><p>No expenses recorded.</p></div>
+        <EmptyState Icon="bi-cash-stack" Title="No expenses recorded for this range" />
     }
     else
     {
         <table class="table">
             <thead><tr><th>Date</th><th>Description</th><th>Category</th><th>Store</th><th>Paid To</th><th>By</th><th class="text-right">Amount</th><th></th></tr></thead>
             <tbody>
-                @foreach (var e in expenses)
+                @foreach (var e in paged.Items)
                 {
                     <tr>
                         <td>@e.Date.ToString("dd MMM yyyy")</td>
@@ -59,9 +59,12 @@ else
                 }
             </tbody>
             <tfoot>
-                <tr><td colspan="6" class="text-right">Total</td><td class="text-right">@Money.Format(expenses.Sum(e => e.Amount))</td><td></td></tr>
+                <tr><td colspan="6" class="text-right">Total (page)</td><td class="text-right">@Money.Format(paged.Items.Sum(e => e.Amount))</td><td></td></tr>
             </tfoot>
         </table>
+
+        <Pager Page="page" PageSize="pageSize" TotalCount="paged.TotalCount"
+               PageChanged="OnPageChanged" PageSizeChanged="OnPageSizeChanged" />
     }
 }
 
@@ -110,9 +113,11 @@ else
 @code {
     static readonly string[] Categories = { "Rent", "Utilities", "Wages", "Transport", "Stock", "Marketing", "Maintenance", "Bank Charges", "Other" };
 
-    List<Expense>? expenses;
+    PagedResult<Expense>? paged;
     List<Store>? stores;
     Expense? editing;
+    int page = 1;
+    int pageSize = 25;
     DateTime? from = DateTime.UtcNow.AddDays(-30);
     DateTime? to = DateTime.UtcNow;
 
@@ -123,7 +128,10 @@ else
         await Reload();
     }
 
-    async Task Reload() => expenses = await Ex.GetAllAsync(from, to);
+    async Task Reload() => paged = await Ex.GetPagedAsync(page, pageSize, from, to);
+    async Task ApplyFilter() { page = 1; await Reload(); }
+    async Task OnPageChanged(int p) { page = p; await Reload(); }
+    async Task OnPageSizeChanged(int s) { pageSize = s; page = 1; await Reload(); }
     void Edit(Expense e) => editing = e;
 
     async Task Save()

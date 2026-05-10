@@ -105,7 +105,24 @@
         </header>
 
         <article class="content">
-            @Body
+            <ErrorBoundary @ref="errorBoundary">
+                <ChildContent>@Body</ChildContent>
+                <ErrorContent Context="ex">
+                    <div class="error-boundary">
+                        <div class="empty-icon"><i class="bi bi-exclamation-octagon"></i></div>
+                        <h2>Something went wrong</h2>
+                        <p class="muted">An unexpected error occurred. The technical team has been notified.</p>
+                        <details class="error-trace">
+                            <summary>Technical details</summary>
+                            <pre>@ex.GetType().Name: @ex.Message</pre>
+                        </details>
+                        <div class="actions">
+                            <button class="btn btn-primary" @onclick="RecoverFromError"><i class="bi bi-arrow-clockwise"></i> Try again</button>
+                            <a class="btn" href="/"><i class="bi bi-house"></i> Dashboard</a>
+                        </div>
+                    </div>
+                </ErrorContent>
+            </ErrorBoundary>
         </article>
     </main>
 </div>
@@ -145,7 +162,10 @@
     bool menuOpen;
     bool showShortcuts;
     bool cmdkOpen;
+    ErrorBoundary? errorBoundary;
     DotNetObjectReference<MainLayout>? selfRef;
+
+    void RecoverFromError() => errorBoundary?.Recover();
 
     protected override async Task OnInitializedAsync()
     {
@@ -199,7 +219,10 @@
     }
 
     void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
-        => Drawer.Close();
+    {
+        Drawer.Close();
+        errorBoundary?.Recover();
+    }
 
     void ToggleMenu() => menuOpen = !menuOpen;
     void CloseMenu() => menuOpen = false;

@@ -58,6 +58,9 @@ else
             }
         </tbody>
     </table>
+
+    <Pager Page="page" PageSize="pageSize" TotalCount="paged.TotalCount"
+           PageChanged="OnPageChanged" PageSizeChanged="OnPageSizeChanged" />
 }
 
 @if (showNew)
@@ -177,6 +180,9 @@ else
         catch (Exception ex) { error = ex.Message; }
         finally { saving = false; }
     }
+
+    async Task OnPageChanged(int p) { page = p; paged = await Q.GetPagedAsync(page, pageSize); }
+    async Task OnPageSizeChanged(int s) { pageSize = s; page = 1; paged = await Q.GetPagedAsync(page, pageSize); }
 
     async Task SetStatus(int id, QuotationStatus s)
     {
