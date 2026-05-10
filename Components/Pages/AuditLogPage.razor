@@ -1,40 +1,169 @@
 @page "/audit"
 @rendermode InteractiveServer
 @inject AuditService Audit
+@inject SettingsService Settings
 @inject LayoutState Layout
+@inject ToastService Toast
 
 <PageTitle>Audit Log</PageTitle>
 
-@if (logs == null) { <p class="muted">Loading…</p> }
+<div class="page-header">
+    <div class="actions">
+        <a class="btn" href="@CsvUrl" target="_blank"><i class="bi bi-download"></i> Export CSV</a>
+        <button class="btn btn-danger" @onclick="() => purgeOpen = true"><i class="bi bi-trash"></i> Purge old</button>
+    </div>
+</div>
+
+<div class="filter-bar">
+    <label>Action
+        <select @bind="action" @bind:after="Reload">
+            <option value="">All</option>
+            @foreach (var a in actions) { <option value="@a">@a</option> }
+        </select>
+    </label>
+    <label>Entity
+        <select @bind="entityType" @bind:after="Reload">
+            <option value="">All</option>
+            @foreach (var e in entityTypes) { <option value="@e">@e</option> }
+        </select>
+    </label>
+    <label>User
+        <select @bind="user" @bind:after="Reload">
+            <option value="">All</option>
+            @foreach (var u in users) { <option value="@u">@u</option> }
+        </select>
+    </label>
+    <label>From<input type="date" @bind="from" @bind:after="Reload" /></label>
+    <label>To<input type="date" @bind="to" @bind:after="Reload" /></label>
+    <button class="btn btn-ghost btn-sm" @onclick="Clear"><i class="bi bi-x-lg"></i> Clear</button>
+</div>
+
+@if (logs == null) { <Skeleton Height="240" /> }
 else if (!logs.Any())
 {
-    <div class="card empty-state"><i class="bi bi-shield-check"></i><p>No events yet.</p></div>
+    <EmptyState Icon="bi-shield-check" Title="No audit events match" Description="Adjust the filters or wait for system activity." />
 }
 else
 {
+    <div class="kpi-grid" style="grid-template-columns: repeat(4, minmax(0, 1fr));">
+        <KpiCard Title="Total events"  Value="@logs.Count.ToString()"                                           Accent="indigo" Icon="bi-journal-text" />
+        <KpiCard Title="Unique users"  Value="@logs.Select(l => l.UserName).Distinct().Count().ToString()"     Accent="blue"   Icon="bi-people" />
+        <KpiCard Title="Actions"       Value="@logs.Select(l => l.Action).Distinct().Count().ToString()"       Accent="teal"   Icon="bi-lightning" />
+        <KpiCard Title="Entities"      Value="@logs.Select(l => l.EntityType).Distinct().Count().ToString()"   Accent="purple" Icon="bi-collection" />
+    </div>
+
     <table class="table">
         <thead><tr><th>When</th><th>User</th><th>Action</th><th>Entity</th><th>ID</th><th>Details</th></tr></thead>
         <tbody>
             @foreach (var l in logs)
             {
                 <tr>
-                    <td>@l.Timestamp.ToLocalTime().ToString("dd MMM HH:mm:ss")</td>
-                    <td>@l.UserName</td>
-                    <td><span class="badge">@l.Action</span></td>
-                    <td>@l.EntityType</td>
-                    <td>#@l.EntityId</td>
-                    <td>@l.Details</td>
+                    <td class="tabular">@l.Timestamp.ToLocalTime().ToString("dd MMM HH:mm:ss")</td>
+                    <td>
+                        <div class="flex items-center gap-2">
+                            <Avatar Name="@l.UserName" Size="sm" />
+                            <span>@l.UserName</span>
+                        </div>
+                    </td>
+                    <td><span class="status @ActionClass(l.Action)">@l.Action</span></td>
+                    <td><code>@l.EntityType</code></td>
+                    <td class="tabular text-muted">#@l.EntityId</td>
+                    <td><span class="audit-details">@(l.Details ?? "—")</span></td>
                 </tr>
             }
         </tbody>
     </table>
 }
 
+<ConfirmDialog @bind-Open="purgeOpen"
+               Title="Purge old audit entries?"
+               Message="@($"Removing audit entries older than {purgeDays} day(s). This is permanent.")"
+               ConfirmText="Purge"
+               Danger="true"
+               OnConfirm="DoPurge" />
+
+<style>
+    .audit-details {
+        font-family: ui-monospace, "SF Mono", monospace;
+        font-size: .78rem;
+        color: var(--text-2);
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    .status-created { background: var(--success-bg); color: var(--success); border-color: var(--success-border); }
+    .status-updated { background: var(--info-bg);    color: var(--info);    border-color: var(--info-border); }
+    .status-deleted { background: var(--danger-bg);  color: var(--danger);  border-color: var(--danger-border); }
+    .status-signin  { background: var(--brand-50);   color: var(--brand-700); border-color: var(--brand-100); }
+    .status-cancelled, .status-refunded { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
+</style>
+
 @code {
     List<AuditLog>? logs;
+    List<string> actions = new();
+    List<string> entityTypes = new();
+    List<string> users = new();
+
+    string action = "";
+    string entityType = "";
+    string user = "";
+    DateTime? from;
+    DateTime? to;
+
+    bool purgeOpen;
+    int purgeDays = 365;
+
+    string CsvUrl
+    {
+        get
+        {
+            var qs = new List<string>();
+            if (!string.IsNullOrEmpty(action))     qs.Add($"action={Uri.EscapeDataString(action)}");
+            if (!string.IsNullOrEmpty(entityType)) qs.Add($"entityType={Uri.EscapeDataString(entityType)}");
+            if (!string.IsNullOrEmpty(user))       qs.Add($"user={Uri.EscapeDataString(user)}");
+            if (from.HasValue)                     qs.Add($"from={from:yyyy-MM-dd}");
+            if (to.HasValue)                       qs.Add($"to={to:yyyy-MM-dd}");
+            return "/export/audit.csv" + (qs.Any() ? "?" + string.Join("&", qs) : "");
+        }
+    }
+
     protected override async Task OnInitializedAsync()
     {
-        Layout.Set("Audit Log", "Last 200 events across the system");
-        logs = await Audit.GetRecentAsync();
+        Layout.Set("Audit Log", "Every change in the system, captured automatically");
+        purgeDays = await Settings.GetAsync(SettingKeys.AuditRetentionDays, 365);
+        actions = await Audit.GetDistinctActionsAsync();
+        entityTypes = await Audit.GetDistinctEntityTypesAsync();
+        users = await Audit.GetDistinctUsersAsync();
+        await Reload();
     }
+
+    async Task Reload() => logs = await Audit.SearchAsync(
+        string.IsNullOrEmpty(action) ? null : action,
+        string.IsNullOrEmpty(entityType) ? null : entityType,
+        string.IsNullOrEmpty(user) ? null : user,
+        from, to, 1000);
+
+    async Task Clear()
+    {
+        action = entityType = user = "";
+        from = to = null;
+        await Reload();
+    }
+
+    async Task DoPurge()
+    {
+        try
+        {
+            var n = await Audit.PurgeOlderThanAsync(purgeDays);
+            Toast.Success($"Purged {n} audit entries older than {purgeDays} days.");
+            await Reload();
+            actions = await Audit.GetDistinctActionsAsync();
+            entityTypes = await Audit.GetDistinctEntityTypesAsync();
+            users = await Audit.GetDistinctUsersAsync();
+        }
+        catch (Exception ex) { Toast.Error(ex.Message); }
+    }
+
+    static string ActionClass(string action) => $"status-{action.ToLowerInvariant()}";
 }

@@ -9,9 +9,10 @@ public class QuotationService
     private readonly IDbContextFactory<SalesDbContext> _factory;
     private readonly AuditService _audit;
     private readonly SalesService _sales;
+    private readonly SettingsService _settings;
 
-    public QuotationService(IDbContextFactory<SalesDbContext> factory, AuditService audit, SalesService sales)
-    { _factory = factory; _audit = audit; _sales = sales; }
+    public QuotationService(IDbContextFactory<SalesDbContext> factory, AuditService audit, SalesService sales, SettingsService settings)
+    { _factory = factory; _audit = audit; _sales = sales; _settings = settings; }
 
     public async Task<List<Quotation>> GetAllAsync()
     {
@@ -34,9 +35,10 @@ public class QuotationService
         await using var db = await _factory.CreateDbContextAsync();
         if (string.IsNullOrWhiteSpace(q.QuoteNumber))
             q.QuoteNumber = $"QT-{DateTime.UtcNow:yyyyMMddHHmmss}";
+        var gstRate = await _settings.GetAsync(SettingKeys.GstRate, 0.15m);
         foreach (var i in q.Items) i.LineTotal = i.Quantity * i.UnitPrice;
         q.Subtotal = q.Items.Sum(i => i.LineTotal);
-        q.Tax = Math.Round(q.Subtotal * 0.15m, 2);
+        q.Tax = Math.Round(q.Subtotal * gstRate, 2);
         q.Total = q.Subtotal + q.Tax - q.Discount;
         db.Quotations.Add(q);
         await db.SaveChangesAsync();
@@ -77,8 +79,9 @@ public class QuotationService
             Quantity = i.Quantity, UnitPrice = i.UnitPrice,
             LineTotal = i.Quantity * i.UnitPrice
         }).ToList();
+        var gstRate = await _settings.GetAsync(SettingKeys.GstRate, 0.15m);
         existing.Subtotal = existing.Items.Sum(i => i.LineTotal);
-        existing.Tax = Math.Round(existing.Subtotal * 0.15m, 2);
+        existing.Tax = Math.Round(existing.Subtotal * gstRate, 2);
         existing.Total = existing.Subtotal + existing.Tax - existing.Discount;
         await db.SaveChangesAsync();
         await _audit.LogAsync("Updated", "Quotation", q.Id, existing.QuoteNumber);

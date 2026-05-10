@@ -17,15 +17,16 @@ var provider = builder.Configuration["Database:Provider"] ?? "SqlServer";
 var connStr = builder.Configuration.GetConnectionString("Default")
               ?? @"Server=.\SQLEXPRESS;Database=SalesAppDb;Trusted_Connection=True;TrustServerCertificate=True;";
 
-void ConfigureDb(DbContextOptionsBuilder opt)
+builder.Services.AddScoped<AuditInterceptor>();
+builder.Services.AddDbContextFactory<SalesDbContext>((sp, opt) =>
 {
     if (provider.Equals("InMemory", StringComparison.OrdinalIgnoreCase))
         opt.UseInMemoryDatabase("SalesAppDb");
     else
         opt.UseSqlServer(connStr);
-}
-
-builder.Services.AddDbContextFactory<SalesDbContext>(ConfigureDb);
+    // Auto-audit every SaveChanges via interceptor
+    opt.AddInterceptors(sp.GetRequiredService<AuditInterceptor>());
+}, ServiceLifetime.Scoped);
 
 // ----- Optional ASP.NET Core Identity (Auth:Enabled = "true" in appsettings)
 var authEnabled = builder.Configuration.GetValue<bool>("Auth:Enabled");
@@ -60,6 +61,7 @@ builder.Services.AddScoped<ThemeService>();
 builder.Services.AddScoped<NavDrawerState>();
 builder.Services.AddScoped<ToastService>();
 builder.Services.AddScoped<TenantContext>();
+builder.Services.AddScoped<SettingsService>();
 builder.Services.AddScoped<AuditService>();
 builder.Services.AddScoped<SalesService>();
 builder.Services.AddScoped<InventoryService>();
@@ -128,6 +130,9 @@ app.MapGet("/export/nra.csv", async (ExportService ex, DateTime from, DateTime t
 
 app.MapGet("/export/inventory.csv", async (ExportService ex) =>
     Results.File(await ex.InventoryCsvAsync(), "text/csv", $"inventory_{DateTime.UtcNow:yyyyMMdd_HHmm}.csv"));
+
+app.MapGet("/export/audit.csv", async (ExportService ex, string? action, string? entityType, string? user, DateTime? from, DateTime? to) =>
+    Results.File(await ex.AuditCsvAsync(action, entityType, user, from, to), "text/csv", $"audit_{DateTime.UtcNow:yyyyMMdd_HHmm}.csv"));
 
 // ----- Mobile Money webhook (Orange Money / Afrimoney aggregator POSTs here)
 // Verify HMAC signature in production using MoMo:WebhookSecret.

@@ -9,12 +9,14 @@ public class SalesService
     private readonly IDbContextFactory<SalesDbContext> _factory;
     private readonly AuditService _audit;
     private readonly CurrentUserService _user;
+    private readonly SettingsService _settings;
 
-    public SalesService(IDbContextFactory<SalesDbContext> factory, AuditService audit, CurrentUserService user)
+    public SalesService(IDbContextFactory<SalesDbContext> factory, AuditService audit, CurrentUserService user, SettingsService settings)
     {
         _factory = factory;
         _audit = audit;
         _user = user;
+        _settings = settings;
     }
 
     public async Task<List<Sale>> GetRecentAsync(int take = 50, DateTime? from = null, DateTime? to = null, int? storeId = null)
@@ -44,6 +46,8 @@ public class SalesService
     public async Task<int> CreateAsync(Sale sale)
     {
         await using var db = await _factory.CreateDbContextAsync();
+        var gstRate = await _settings.GetAsync(SettingKeys.GstRate, 0.15m);
+        var loyaltyPer = await _settings.GetAsync(SettingKeys.LoyaltyPerCurrency, 100m);
 
         // Recompute totals server-side
         foreach (var i in sale.Items)
@@ -51,7 +55,7 @@ public class SalesService
             i.LineTotal = (i.Quantity * i.UnitPrice) - i.LineDiscount;
         }
         sale.Subtotal = sale.Items.Sum(i => i.LineTotal);
-        sale.Tax = Math.Round(sale.Subtotal * 0.15m, 2);
+        sale.Tax = Math.Round(sale.Subtotal * gstRate, 2);
         sale.Total = sale.Subtotal + sale.Tax - sale.Discount;
         if (string.IsNullOrWhiteSpace(sale.InvoiceNumber))
             sale.InvoiceNumber = $"INV-{DateTime.UtcNow:yyyyMMddHHmmss}";
@@ -71,11 +75,11 @@ public class SalesService
             }
         }
 
-        // Loyalty: 1 point per NLe 100 spent (only NLe sales)
-        if (sale.CustomerId.HasValue && sale.Currency == "NLe")
+        // Loyalty: 1 point per Spend-per-Point setting (NLe sales only)
+        if (sale.CustomerId.HasValue && sale.Currency == "NLe" && loyaltyPer > 0)
         {
             var c = await db.Customers.FindAsync(sale.CustomerId.Value);
-            if (c != null) c.LoyaltyPoints += (int)(sale.Total / 100m);
+            if (c != null) c.LoyaltyPoints += (int)(sale.Total / loyaltyPer);
         }
 
         await db.SaveChangesAsync();
@@ -102,6 +106,7 @@ public class SalesService
     public async Task RefundAsync(int id, string reason)
     {
         await using var db = await _factory.CreateDbContextAsync();
+        var loyaltyPer = await _settings.GetAsync(SettingKeys.LoyaltyPerCurrency, 100m);
         var sale = await db.Sales.Include(s => s.Items).FirstOrDefaultAsync(s => s.Id == id);
         if (sale == null) return;
         sale.Status = SaleStatus.Refunded;
@@ -111,10 +116,10 @@ public class SalesService
                 .FirstOrDefaultAsync(i => i.StoreId == sale.StoreId && i.ProductId == item.ProductId);
             if (inv != null) inv.QuantityOnHand += item.Quantity;
         }
-        if (sale.CustomerId.HasValue)
+        if (sale.CustomerId.HasValue && loyaltyPer > 0)
         {
             var c = await db.Customers.FindAsync(sale.CustomerId.Value);
-            if (c != null) c.LoyaltyPoints = Math.Max(0, c.LoyaltyPoints - (int)(sale.Total / 100m));
+            if (c != null) c.LoyaltyPoints = Math.Max(0, c.LoyaltyPoints - (int)(sale.Total / loyaltyPer));
         }
         await db.SaveChangesAsync();
         await _audit.LogAsync("Refunded", "Sale", sale.Id, reason);

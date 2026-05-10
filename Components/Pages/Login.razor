@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @layout EmptyLayout
 @inject CurrentUserService User
+@inject AuditService Audit
 @inject NavigationManager Nav
 
 <PageTitle>Sign in · Salone Sales</PageTitle>
@@ -228,9 +229,10 @@
         role = User.Role;
     }
 
-    void SignIn()
+    async Task SignIn()
     {
         User.SignIn(name, role);
+        await Audit.LogAsync("SignIn", "User", 0, $"{name} signed in as {role}");
         Nav.NavigateTo("/");
     }
 }

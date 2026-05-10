@@ -77,6 +77,31 @@ public class ExportService
         return Encoding.UTF8.GetBytes(sb.ToString());
     }
 
+    public async Task<byte[]> AuditCsvAsync(string? action, string? entityType, string? user, DateTime? from, DateTime? to)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        var q = db.AuditLogs.AsQueryable();
+        if (!string.IsNullOrEmpty(action))     q = q.Where(a => a.Action == action);
+        if (!string.IsNullOrEmpty(entityType)) q = q.Where(a => a.EntityType == entityType);
+        if (!string.IsNullOrEmpty(user))       q = q.Where(a => a.UserName == user);
+        if (from.HasValue)                     q = q.Where(a => a.Timestamp >= from.Value);
+        if (to.HasValue)                       q = q.Where(a => a.Timestamp < to.Value.AddDays(1));
+        var rows = await q.OrderByDescending(a => a.Timestamp).Take(5000).ToListAsync();
+
+        var sb = new StringBuilder();
+        sb.AppendLine("Timestamp,User,Action,EntityType,EntityId,Details");
+        foreach (var r in rows)
+        {
+            sb.Append(r.Timestamp.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)).Append(',');
+            sb.Append(Csv(r.UserName)).Append(',');
+            sb.Append(Csv(r.Action)).Append(',');
+            sb.Append(Csv(r.EntityType)).Append(',');
+            sb.Append(r.EntityId).Append(',');
+            sb.Append(Csv(r.Details)).AppendLine();
+        }
+        return Encoding.UTF8.GetBytes(sb.ToString());
+    }
+
     public async Task<byte[]> InventoryCsvAsync()
     {
         await using var db = await _factory.CreateDbContextAsync();

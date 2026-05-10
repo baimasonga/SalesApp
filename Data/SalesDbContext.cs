@@ -30,6 +30,7 @@ public class SalesDbContext : DbContext
     public DbSet<Layaway> Layaways => Set<Layaway>();
     public DbSet<LayawayPayment> LayawayPayments => Set<LayawayPayment>();
     public DbSet<Tenant> Tenants => Set<Tenant>();
+    public DbSet<Setting> Settings => Set<Setting>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {

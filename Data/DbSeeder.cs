@@ -101,6 +101,31 @@ public static class DbSeeder
         }
         db.Sales.AddRange(sales);
 
+        // Default system settings (only seed if empty)
+        if (!await db.Settings.AnyAsync())
+        {
+            db.Settings.AddRange(
+                new Setting { Key = SettingKeys.BusinessName,    Value = "Demo Business SL",   Category = "Business",  Description = "Display name on invoices and receipts." },
+                new Setting { Key = SettingKeys.BusinessTin,     Value = "",                   Category = "Business",  Description = "NRA Taxpayer Identification Number." },
+                new Setting { Key = SettingKeys.BusinessAddress, Value = "Freetown, Sierra Leone", Category = "Business", Description = "Trading address." },
+                new Setting { Key = SettingKeys.BusinessPhone,   Value = "+232 76 000 000",    Category = "Business",  Description = "Primary contact phone." },
+                new Setting { Key = SettingKeys.BusinessEmail,   Value = "info@demo.sl",       Category = "Business",  Description = "Primary contact email." },
+                new Setting { Key = SettingKeys.DefaultCurrency, Value = "NLe",                Category = "Business",  Description = "Default currency code (NLe / USD)." },
+
+                new Setting { Key = SettingKeys.GstRate,             Value = "0.15",  Category = "Tax",       Description = "Goods & Services Tax rate (decimal, e.g. 0.15 = 15%)." },
+                new Setting { Key = SettingKeys.DefaultDiscountCap,  Value = "0.20",  Category = "Sales",     Description = "Maximum discount percent without manager override." },
+                new Setting { Key = SettingKeys.RefundWindowDays,    Value = "30",    Category = "Sales",     Description = "Days a sale can be refunded after completion." },
+                new Setting { Key = SettingKeys.LowStockThreshold,   Value = "8",     Category = "Inventory", Description = "Default reorder level for new inventory rows." },
+
+                new Setting { Key = SettingKeys.LoyaltyPerCurrency,  Value = "100",   Category = "Loyalty",   Description = "Spend per loyalty point (e.g. 100 = 1 point per NLe 100)." },
+
+                new Setting { Key = SettingKeys.ReceiptHeader, Value = "Welcome to Salone Sales", Category = "Receipt", Description = "Text printed at the top of receipts." },
+                new Setting { Key = SettingKeys.ReceiptFooter, Value = "Tenki — thank you for shopping with us!", Category = "Receipt", Description = "Text printed at the bottom of receipts." },
+
+                new Setting { Key = SettingKeys.AuditRetentionDays, Value = "365", Category = "Audit", Description = "How many days of audit log to retain." }
+            );
+        }
+
         // Tenant (single demo tenant)
         db.Tenants.Add(new Tenant { Name = "Demo Business SL", Subdomain = "demo", Phone = "+232 76 000 000", Email = "info@demo.sl", DefaultCurrency = "NLe" });
 

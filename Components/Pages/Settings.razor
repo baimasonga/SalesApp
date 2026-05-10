@@ -1,0 +1,235 @@
+@page "/settings"
+@rendermode InteractiveServer
+@inject SettingsService Cfg
+@inject LayoutState Layout
+@inject ToastService Toast
+
+<PageTitle>Settings</PageTitle>
+
+<div class="page-header"></div>
+
+@if (loading) { <Skeleton Height="320" /> }
+else
+{
+    <div class="settings-shell">
+        <aside class="settings-nav">
+            @foreach (var sec in Sections)
+            {
+                <button class="settings-nav-item @(activeKey == sec.Key ? "active" : "")"
+                        @onclick="() => activeKey = sec.Key" type="button">
+                    <i class="bi @sec.Icon"></i>
+                    <div>
+                        <strong>@sec.Title</strong>
+                        <small>@sec.Description</small>
+                    </div>
+                </button>
+            }
+        </aside>
+
+        <div class="settings-pane">
+            @switch (activeKey)
+            {
+                case "business":
+                    <h2>Business identity</h2>
+                    <p class="muted">Shown on receipts, invoices, and the topbar.</p>
+                    @SettingInput("Business name",      SettingKeys.BusinessName)
+                    @SettingInput("NRA tax ID (TIN)",   SettingKeys.BusinessTin, "Sierra Leone Taxpayer Identification Number")
+                    @SettingInput("Address",            SettingKeys.BusinessAddress)
+                    @SettingInput("Phone",              SettingKeys.BusinessPhone, placeholder: "+232 …")
+                    @SettingInput("Email",              SettingKeys.BusinessEmail)
+                    <div class="form-row">
+                        <label>Default currency</label>
+                        <select @bind="values[SettingKeys.DefaultCurrency]">
+                            <option value="NLe">NLe — New Leone</option>
+                            <option value="USD">USD — US Dollar</option>
+                        </select>
+                        <span class="help">Used as the default for new sales.</span>
+                    </div>
+                    break;
+
+                case "tax":
+                    <h2>Tax & sales policies</h2>
+                    <p class="muted">These values drive every new sale and quotation.</p>
+                    @SettingInput("GST rate (decimal)",        SettingKeys.GstRate,             "e.g. 0.15 for 15%", "number", "0.001")
+                    @SettingInput("Discount cap (decimal)",    SettingKeys.DefaultDiscountCap,  "Max discount % without manager approval", "number", "0.01")
+                    @SettingInput("Refund window (days)",      SettingKeys.RefundWindowDays,    "Sales can be refunded within this many days", "number", "1")
+                    @SettingInput("Default reorder level",     SettingKeys.LowStockThreshold,   "Suggested reorder quantity for new inventory rows", "number", "1")
+                    break;
+
+                case "loyalty":
+                    <h2>Loyalty program</h2>
+                    <p class="muted">Customers earn 1 point per the spend amount you set.</p>
+                    @SettingInput("Spend per point (NLe)", SettingKeys.LoyaltyPerCurrency, "e.g. 100 means 1 point per NLe 100 spent", "number", "1")
+                    break;
+
+                case "receipt":
+                    <h2>Receipt customization</h2>
+                    <p class="muted">Personalize the printed thermal & A4 receipts.</p>
+                    @SettingTextArea("Header text", SettingKeys.ReceiptHeader)
+                    @SettingTextArea("Footer text", SettingKeys.ReceiptFooter)
+                    break;
+
+                case "audit":
+                    <h2>Audit & retention</h2>
+                    <p class="muted">Every change to every record is captured automatically. Older entries can be purged on schedule.</p>
+                    @SettingInput("Audit retention (days)", SettingKeys.AuditRetentionDays, "Older entries are removed when you click 'Purge old' on the Audit page.", "number", "1")
+                    break;
+
+                case "integrations":
+                    <h2>Integrations</h2>
+                    <p class="muted">SMS provider keys and Mobile Money webhook secrets live in <code>appsettings.json</code> for security. This page reads them; production should use Key Vault / environment variables.</p>
+                    <div class="alert-info"><i class="bi bi-info-circle"></i> Sensitive credentials are intentionally not editable here.</div>
+                    break;
+            }
+
+            @if (activeKey != "integrations")
+            {
+                <div class="settings-actions">
+                    <button class="btn" @onclick="ResetSection" disabled="@saving"><i class="bi bi-arrow-counterclockwise"></i> Discard changes</button>
+                    <button class="btn btn-primary" @onclick="SaveSection" disabled="@saving">
+                        @if (saving) { <span><i class="bi bi-arrow-clockwise"></i> Saving…</span> }
+                        else        { <span><i class="bi bi-check-lg"></i> Save changes</span> }
+                    </button>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@functions {
+    RenderFragment SettingInput(string label, string key, string? help = null, string type = "text", string step = "any", string? placeholder = null) => @<text>
+        <div class="form-row">
+            <label>@label</label>
+            <input type="@type" step="@step" placeholder="@placeholder" @bind="values[key]" />
+            @if (!string.IsNullOrEmpty(help)) { <span class="help">@help</span> }
+        </div>
+    </text>;
+
+    RenderFragment SettingTextArea(string label, string key) => @<text>
+        <div class="form-row">
+            <label>@label</label>
+            <textarea rows="3" @bind="values[key]"></textarea>
+        </div>
+    </text>;
+}
+
+<style>
+    .settings-shell {
+        display: grid;
+        grid-template-columns: 280px 1fr;
+        gap: 1rem;
+        align-items: start;
+    }
+    @@media (max-width: 1000px) { .settings-shell { grid-template-columns: 1fr; } }
+
+    .settings-nav {
+        display: flex; flex-direction: column;
+        gap: .25rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: .5rem;
+        position: sticky; top: 5rem;
+    }
+    .settings-nav-item {
+        display: flex; align-items: flex-start; gap: .65rem;
+        padding: .7rem .75rem;
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: var(--radius);
+        cursor: pointer;
+        font: inherit;
+        color: var(--text);
+        text-align: left;
+        transition: all var(--transition);
+    }
+    .settings-nav-item:hover { background: var(--surface-2); }
+    .settings-nav-item.active { background: var(--brand-50); border-color: var(--brand-100); }
+    .settings-nav-item .bi { font-size: 1.1rem; color: var(--text-muted); padding-top: 1px; }
+    .settings-nav-item.active .bi { color: var(--brand); }
+    .settings-nav-item div { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
+    .settings-nav-item strong { font-size: .85rem; }
+    .settings-nav-item small { font-size: .72rem; color: var(--text-muted); }
+
+    .settings-pane {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 1.75rem 1.85rem;
+    }
+    .settings-pane h2 { margin: 0 0 .35rem; font-size: 1.15rem; }
+    .settings-pane > p { margin-bottom: 1.5rem; }
+
+    .settings-actions {
+        display: flex; gap: .5rem; justify-content: flex-end;
+        margin-top: 1.5rem; padding-top: 1.25rem;
+        border-top: 1px solid var(--border);
+    }
+</style>
+
+@code {
+    record Section(string Key, string Title, string Description, string Icon);
+    static readonly Section[] Sections = new[]
+    {
+        new Section("business",     "Business identity",  "Name, TIN, address, default currency",            "bi-building"),
+        new Section("tax",          "Tax & sales policy", "GST rate, discount cap, refund window",           "bi-percent"),
+        new Section("loyalty",      "Loyalty program",    "Points-per-spend rule",                           "bi-gift"),
+        new Section("receipt",      "Receipts",           "Custom header & footer text on printed receipts", "bi-receipt"),
+        new Section("audit",        "Audit & retention",  "How long to keep audit history",                  "bi-shield-check"),
+        new Section("integrations", "Integrations",       "SMS, Mobile Money — read-only",                   "bi-plug"),
+    };
+
+    bool loading = true;
+    bool saving;
+    string activeKey = "business";
+    Dictionary<string, string?> values = new();
+
+    static readonly Dictionary<string, string> Categories = new()
+    {
+        [SettingKeys.BusinessName]      = "Business",
+        [SettingKeys.BusinessTin]       = "Business",
+        [SettingKeys.BusinessAddress]   = "Business",
+        [SettingKeys.BusinessPhone]     = "Business",
+        [SettingKeys.BusinessEmail]     = "Business",
+        [SettingKeys.DefaultCurrency]   = "Business",
+        [SettingKeys.GstRate]           = "Tax",
+        [SettingKeys.DefaultDiscountCap]= "Sales",
+        [SettingKeys.RefundWindowDays]  = "Sales",
+        [SettingKeys.LowStockThreshold] = "Inventory",
+        [SettingKeys.LoyaltyPerCurrency]= "Loyalty",
+        [SettingKeys.ReceiptHeader]     = "Receipt",
+        [SettingKeys.ReceiptFooter]     = "Receipt",
+        [SettingKeys.AuditRetentionDays]= "Audit",
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        Layout.Set("Settings", "Configure your business — taxes, loyalty, receipts, retention");
+        await LoadAll();
+        loading = false;
+    }
+
+    async Task LoadAll()
+    {
+        foreach (var key in Categories.Keys)
+            values[key] = await Cfg.GetAsync(key);
+    }
+
+    async Task SaveSection()
+    {
+        saving = true;
+        try
+        {
+            foreach (var (key, val) in values)
+            {
+                Categories.TryGetValue(key, out var cat);
+                await Cfg.SetAsync(key, val, category: cat ?? "General");
+            }
+            Toast.Success("Settings saved.");
+        }
+        catch (Exception ex) { Toast.Error($"Save failed: {ex.Message}"); }
+        finally { saving = false; }
+    }
+
+    async Task ResetSection() => await LoadAll();
+}

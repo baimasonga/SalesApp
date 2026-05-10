@@ -27,7 +27,10 @@
       "Bash(curl -s -o /dev/null -w \"  sales.csv: %{http_code} %{size_download}b\\\\n\" -m 5 \"http://localhost:5099/export/sales.csv\")",
       "Bash(curl -s -o /dev/null -w \"  inventory.csv: %{http_code} %{size_download}b\\\\n\" -m 5 \"http://localhost:5099/export/inventory.csv\")",
       "Bash(curl -s -m 5 http://localhost:5099/audit)",
-      "Bash(dotnet clean *)"
+      "Bash(dotnet clean *)",
+      "Bash(curl -s -m 5 \"http://localhost:5099/export/audit.csv\")",
+      "Bash(awk -F, '{print $4}')",
+      "Bash(curl -s -m 5 http://localhost:5099/settings)"
     ]
   }
 }

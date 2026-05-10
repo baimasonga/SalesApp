@@ -114,6 +114,10 @@ build_metadata.AdditionalFiles.CssScope =
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xTYWxlc1RhcmdldHMucmF6b3I=
 build_metadata.AdditionalFiles.CssScope = 
 
+[C:/Users/SECAP Training/Documents/GitHub/SalesApp/Components/Pages/Settings.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xTZXR0aW5ncy5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
 [C:/Users/SECAP Training/Documents/GitHub/SalesApp/Components/Pages/Shifts.razor]
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xTaGlmdHMucmF6b3I=
 build_metadata.AdditionalFiles.CssScope = 
