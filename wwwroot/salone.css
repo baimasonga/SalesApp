@@ -1177,6 +1177,22 @@ html[data-theme="dark"] .topbar { background: rgba(13, 20, 36, .85); }
     .theme-toggle { display: none; }
 }
 
+/* Bulk action bar — shown above a list when rows are selected */
+.bulk-bar {
+    display: flex; align-items: center; gap: .65rem;
+    background: var(--brand-50);
+    border: 1px solid var(--brand-100);
+    color: var(--brand-700);
+    padding: .55rem .85rem;
+    border-radius: var(--radius);
+    margin-bottom: .85rem;
+    font-size: .85rem;
+}
+.bulk-bar strong { font-variant-numeric: tabular-nums; }
+
+.table tr.is-selected { background: var(--brand-50); }
+.table tr.is-selected:hover { background: #e0e7ff; }
+
 /* Global error boundary */
 .error-boundary {
     max-width: 560px;

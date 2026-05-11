@@ -138,3 +138,12 @@ C:\Users\SECAP Training\Documents\GitHub\SalesApp\obj\Debug\net8.0\refint\SalesA
 C:\Users\SECAP Training\Documents\GitHub\SalesApp\obj\Debug\net8.0\SalesApp.pdb
 C:\Users\SECAP Training\Documents\GitHub\SalesApp\obj\Debug\net8.0\SalesApp.genruntimeconfig.cache
 C:\Users\SECAP Training\Documents\GitHub\SalesApp\obj\Debug\net8.0\ref\SalesApp.dll
+C:\Users\SECAP Training\Documents\GitHub\SalesApp\bin\Debug\net8.0\Serilog.dll
+C:\Users\SECAP Training\Documents\GitHub\SalesApp\bin\Debug\net8.0\Serilog.AspNetCore.dll
+C:\Users\SECAP Training\Documents\GitHub\SalesApp\bin\Debug\net8.0\Serilog.Extensions.Hosting.dll
+C:\Users\SECAP Training\Documents\GitHub\SalesApp\bin\Debug\net8.0\Serilog.Extensions.Logging.dll
+C:\Users\SECAP Training\Documents\GitHub\SalesApp\bin\Debug\net8.0\Serilog.Formatting.Compact.dll
+C:\Users\SECAP Training\Documents\GitHub\SalesApp\bin\Debug\net8.0\Serilog.Settings.Configuration.dll
+C:\Users\SECAP Training\Documents\GitHub\SalesApp\bin\Debug\net8.0\Serilog.Sinks.Console.dll
+C:\Users\SECAP Training\Documents\GitHub\SalesApp\bin\Debug\net8.0\Serilog.Sinks.Debug.dll
+C:\Users\SECAP Training\Documents\GitHub\SalesApp\bin\Debug\net8.0\Serilog.Sinks.File.dll

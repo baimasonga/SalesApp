@@ -5,6 +5,7 @@
 @inject LayoutState Layout
 @inject ToastService Toast
 @inject NavigationManager Nav
+@inject IJSRuntime JS
 
 <PageTitle>Sales</PageTitle>
 
@@ -38,12 +39,32 @@ else if (!paged.Items.Any())
 }
 else
 {
+    @if (selected.Any())
+    {
+        <div class="bulk-bar">
+            <span><strong>@selected.Count</strong> selected</span>
+            <button class="btn btn-sm" @onclick="ExportSelected"><i class="bi bi-download"></i> Export selection</button>
+            <button class="btn btn-sm btn-danger" @onclick="() => bulkCancelOpen = true"><i class="bi bi-x-lg"></i> Cancel selection</button>
+            <button class="btn btn-sm btn-ghost" @onclick="() => selected.Clear()">Clear</button>
+        </div>
+    }
+
     <table class="table">
-        <thead><tr><th>Invoice</th><th>Date</th><th>Store</th><th>Customer</th><th>Items</th><th>Payment</th><th>Status</th><th class="text-right">Total</th><th></th></tr></thead>
+        <thead>
+            <tr>
+                <th style="width:36px;">
+                    <input type="checkbox" @bind="allSelected" @bind:after="ToggleAll" title="Select all on page" />
+                </th>
+                <th>Invoice</th><th>Date</th><th>Store</th><th>Customer</th><th>Items</th><th>Payment</th><th>Status</th><th class="text-right">Total</th><th></th>
+            </tr>
+        </thead>
         <tbody>
             @foreach (var s in paged.Items)
             {
-                <tr>
+                <tr class="@(selected.Contains(s.Id) ? "is-selected" : "")">
+                    <td>
+                        <input type="checkbox" checked="@selected.Contains(s.Id)" @onchange="e => ToggleOne(s.Id, (bool)e.Value!)" />
+                    </td>
                     <td><strong>@s.InvoiceNumber</strong></td>
                     <td>@s.SaleDate.ToString("dd MMM yyyy HH:mm")</td>
                     <td>@s.Store?.Name</td>
@@ -95,6 +116,9 @@ else
     int pageSize = 25;
     Sale? refundFor;
     string refundReason = "";
+    HashSet<int> selected = new();
+    bool allSelected;
+    bool bulkCancelOpen;
 
     string CsvUrl
     {
@@ -151,4 +175,52 @@ else
         }
         catch (Exception ex) { Toast.Error(ex.Message); }
     }
+
+    // ----- Bulk actions -----
+    void ToggleAll()
+    {
+        if (paged == null) return;
+        if (allSelected)
+            foreach (var s in paged.Items) selected.Add(s.Id);
+        else
+            foreach (var s in paged.Items) selected.Remove(s.Id);
+    }
+
+    void ToggleOne(int id, bool checkedNow)
+    {
+        if (checkedNow) selected.Add(id); else selected.Remove(id);
+        allSelected = paged != null && paged.Items.All(s => selected.Contains(s.Id));
+    }
+
+    async Task ExportSelected()
+    {
+        if (paged == null || !selected.Any()) return;
+        var lines = new List<string> { "Invoice,Date,Store,Customer,Payment,Status,Total" };
+        foreach (var s in paged.Items.Where(x => selected.Contains(x.Id)))
+            lines.Add($"{s.InvoiceNumber},{s.SaleDate:yyyy-MM-dd HH:mm},{s.Store?.Name},{s.Customer?.FullName ?? "Walk-in"},{s.PaymentMethod},{s.Status},{s.Total:F2}");
+        var csv = string.Join("\n", lines);
+        await JS.InvokeVoidAsync("salone.downloadFile", $"sales_selection_{DateTime.UtcNow:yyyyMMdd_HHmm}.csv", "text/csv", csv);
+        Toast.Success($"Exported {selected.Count} sale(s).");
+    }
+
+    async Task DoBulkCancel()
+    {
+        var ids = selected.ToList();
+        int cancelled = 0;
+        foreach (var id in ids)
+        {
+            try { await SalesSvc.CancelAsync(id, "Bulk cancel"); cancelled++; } catch { }
+        }
+        Toast.Warning($"Cancelled {cancelled} of {ids.Count} sale(s).");
+        selected.Clear();
+        allSelected = false;
+        await Reload();
+    }
 }
+
+<ConfirmDialog @bind-Open="bulkCancelOpen"
+               Title="Cancel selected sales?"
+               Message="@($"This will cancel {selected.Count} sale(s) and restore stock. Already-cancelled or refunded sales are skipped.")"
+               ConfirmText="Cancel sales"
+               Danger="true"
+               OnConfirm="DoBulkCancel" />
