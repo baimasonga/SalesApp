@@ -14,8 +14,8 @@
     </div>
 </div>
 
-@if (transfers == null) { <Skeleton Height="200" /> }
-else if (!transfers.Any())
+@if (paged == null) { <Skeleton Height="200" /> }
+else if (!paged.Items.Any())
 {
     <EmptyState Icon="bi-arrow-left-right" Title="No transfers yet" Description="Move stock between branches when one runs low and another has surplus.">
         <Actions>
@@ -28,7 +28,7 @@ else
     <table class="table">
         <thead><tr><th>Number</th><th>Date</th><th>From</th><th>To</th><th>Items</th><th>Status</th><th>By</th><th></th></tr></thead>
         <tbody>
-            @foreach (var t in transfers)
+            @foreach (var t in paged.Items)
             {
                 <tr>
                     <td><strong>@t.TransferNumber</strong></td>
@@ -55,6 +55,9 @@ else
             }
         </tbody>
     </table>
+
+    <Pager Page="page" PageSize="pageSize" TotalCount="paged.TotalCount"
+           PageChanged="OnPageChanged" PageSizeChanged="OnPageSizeChanged" />
 }
 
 @if (showNew)
@@ -113,7 +116,9 @@ else
 }
 
 @code {
-    List<StockTransfer>? transfers;
+    PagedResult<StockTransfer>? paged;
+    int page = 1;
+    int pageSize = 25;
     List<Store>? stores;
     List<Product>? products;
     bool showNew, saving;
@@ -123,10 +128,13 @@ else
     StockTransfer newT = new();
     int selectedPid; int qty = 1;
 
+    async Task OnPageChanged(int p) { page = p; paged = await Trf.GetPagedAsync(page, pageSize); }
+    async Task OnPageSizeChanged(int s) { pageSize = s; page = 1; paged = await Trf.GetPagedAsync(page, pageSize); }
+
     protected override async Task OnInitializedAsync()
     {
         Layout.Set("Stock Transfers", "Move inventory between stores");
-        transfers = await Trf.GetAllAsync();
+        paged = await Trf.GetPagedAsync(page, pageSize);
         stores = await Inv.GetStoresAsync();
         products = await Inv.GetProductsAsync();
     }
@@ -154,7 +162,7 @@ else
         {
             await Trf.CreateAsync(newT);
             showNew = false;
-            transfers = await Trf.GetAllAsync();
+            paged = await Trf.GetPagedAsync(page, pageSize);
         }
         catch (Exception ex) { error = ex.Message; }
         finally { saving = false; }
@@ -162,12 +170,12 @@ else
 
     async Task Complete(int id)
     {
-        try { await Trf.CompleteAsync(id); Toast.Success("Transfer completed."); transfers = await Trf.GetAllAsync(); }
+        try { await Trf.CompleteAsync(id); Toast.Success("Transfer completed."); paged = await Trf.GetPagedAsync(page, pageSize); }
         catch (Exception ex) { Toast.Error(ex.Message); }
     }
     async Task Cancel(int id)
     {
-        try { await Trf.CancelAsync(id); Toast.Warning("Transfer cancelled."); transfers = await Trf.GetAllAsync(); }
+        try { await Trf.CancelAsync(id); Toast.Warning("Transfer cancelled."); paged = await Trf.GetPagedAsync(page, pageSize); }
         catch (Exception ex) { Toast.Error(ex.Message); }
     }
 
@@ -176,7 +184,7 @@ else
     async Task DoDelete()
     {
         if (deletingT == null) return;
-        try { await Trf.DeleteAsync(deletingT.Id); Toast.Success("Transfer deleted."); transfers = await Trf.GetAllAsync(); }
+        try { await Trf.DeleteAsync(deletingT.Id); Toast.Success("Transfer deleted."); paged = await Trf.GetPagedAsync(page, pageSize); }
         catch (InvalidOperationException ex) { Toast.Warning(ex.Message); }
         catch (Exception ex) { Toast.Error(ex.Message); }
         finally { deletingT = null; }

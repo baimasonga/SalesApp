@@ -15,8 +15,8 @@
     </div>
 </div>
 
-@if (layaways == null) { <Skeleton Height="200" /> }
-else if (!layaways.Any())
+@if (paged == null) { <Skeleton Height="200" /> }
+else if (!paged.Items.Any())
 {
     <EmptyState Icon="bi-piggy-bank" Title="No layaways yet" Description="Let customers reserve items with a deposit, then add payments until the balance is cleared.">
         <Actions>
@@ -29,7 +29,7 @@ else
     <table class="table">
         <thead><tr><th>Number</th><th>Customer</th><th>Started</th><th class="text-right">Total</th><th class="text-right">Paid</th><th class="text-right">Balance</th><th>Status</th><th></th></tr></thead>
         <tbody>
-            @foreach (var l in layaways)
+            @foreach (var l in paged.Items)
             {
                 <tr>
                     <td><strong>@l.LayawayNumber</strong></td>
@@ -52,6 +52,9 @@ else
             }
         </tbody>
     </table>
+
+    <Pager Page="page" PageSize="pageSize" TotalCount="paged.TotalCount"
+           PageChanged="OnPageChanged" PageSizeChanged="OnPageSizeChanged" />
 }
 
 @if (showNew)
@@ -101,7 +104,9 @@ else
 }
 
 @code {
-    List<Layaway>? layaways;
+    PagedResult<Layaway>? paged;
+    int page = 1;
+    int pageSize = 25;
     List<Customer>? customers;
     List<Store>? stores;
     Layaway newL = new();
@@ -121,7 +126,9 @@ else
         stores = await Inv.GetStoresAsync();
     }
 
-    async Task Reload() => layaways = await Lay.GetAllAsync();
+    async Task Reload() => paged = await Lay.GetPagedAsync(page, pageSize);
+    async Task OnPageChanged(int p) { page = p; await Reload(); }
+    async Task OnPageSizeChanged(int s) { pageSize = s; page = 1; await Reload(); }
 
     void OpenNew()
     {

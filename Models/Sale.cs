@@ -43,6 +43,10 @@ public class Sale
 
     public decimal ExchangeRate { get; set; } = 1m; // to NLe
 
+    /// <summary>Concurrency token — bumps on every save so we detect lost updates.</summary>
+    [Timestamp]
+    public byte[]? RowVersion { get; set; }
+
     public List<SaleItem> Items { get; set; } = new();
 }
 

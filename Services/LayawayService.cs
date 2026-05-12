@@ -20,6 +20,14 @@ public class LayawayService
             .OrderByDescending(l => l.StartDate).ToListAsync();
     }
 
+    public async Task<PagedResult<Layaway>> GetPagedAsync(int page, int pageSize, LayawayStatus? status = null)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        var q = db.Layaways.Include(l => l.Customer).Include(l => l.Store).Include(l => l.Payments).AsQueryable();
+        if (status.HasValue) q = q.Where(l => l.Status == status.Value);
+        return await q.OrderByDescending(l => l.StartDate).ToPagedAsync(page, pageSize);
+    }
+
     public async Task<Layaway?> GetAsync(int id)
     {
         await using var db = await _factory.CreateDbContextAsync();

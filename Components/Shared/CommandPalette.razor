@@ -1,4 +1,5 @@
 @inject NavigationManager Nav
+@inject SearchService Search
 
 @if (Open)
 {
@@ -6,29 +7,56 @@
     <div class="cmdk" @onkeydown="HandleKey" tabindex="-1" @ref="rootRef">
         <div class="cmdk-input-wrap">
             <i class="bi bi-search"></i>
-            <input class="cmdk-input" placeholder="Search pages, customers, products…"
+            <input class="cmdk-input" placeholder="Search pages, customers, products, sales, employees…"
                    @ref="inputRef"
-                   @bind="query" @bind:event="oninput"
+                   @bind="query" @bind:event="oninput" @bind:after="OnQueryChanged"
                    autofocus />
             <kbd>esc</kbd>
         </div>
         <div class="cmdk-list">
-            @if (!Filtered.Any())
+            @{ int idx = 0; }
+
+            @* ----- Content hits (live DB search) ----- *@
+            @if (contentHits != null && contentHits.Any())
             {
-                <div style="padding:1.5rem; text-align:center; color: var(--text-muted); font-size:.85rem;">
-                    No matches for "<strong>@query</strong>"
-                </div>
-            }
-            else
-            {
-                string? lastSection = null;
-                int idx = 0;
-                @foreach (var item in Filtered)
+                string? lastType = null;
+                @foreach (var hit in contentHits)
                 {
-                    if (item.Section != lastSection)
+                    if (hit.Type != lastType)
                     {
-                        lastSection = item.Section;
-                        <div class="cmdk-section">@item.Section</div>
+                        lastType = hit.Type;
+                        <div class="cmdk-section">@(hit.Type)s</div>
+                    }
+                    var i = idx;
+                    <a class="cmdk-item @(i == active ? "is-active" : "")"
+                       href="@hit.Href"
+                       @onclick="@(() => Go(hit.Href))"
+                       @onclick:preventDefault="true">
+                        <i class="bi @hit.Icon"></i>
+                        <span>@hit.Title</span>
+                        <span class="cmdk-item-meta">@hit.Subtitle</span>
+                    </a>
+                    idx++;
+                }
+            }
+
+            @* ----- Page navigation hits ----- *@
+            @{
+                var pages = Filtered.ToList();
+                string? lastSection = null;
+                if (pages.Any() && contentHits != null && contentHits.Any())
+                {
+                    <div class="cmdk-section">Pages</div>
+                }
+                @foreach (var item in pages)
+                {
+                    if (contentHits == null || !contentHits.Any())
+                    {
+                        if (item.Section != lastSection)
+                        {
+                            lastSection = item.Section;
+                            <div class="cmdk-section">@item.Section</div>
+                        }
                     }
                     var i = idx;
                     <a class="cmdk-item @(i == active ? "is-active" : "")"
@@ -42,11 +70,19 @@
                     idx++;
                 }
             }
+
+            @if (idx == 0)
+            {
+                <div style="padding:1.5rem; text-align:center; color: var(--text-muted); font-size:.85rem;">
+                    No matches for "<strong>@query</strong>"
+                </div>
+            }
         </div>
         <div class="cmdk-foot">
             <span><kbd>↑</kbd><kbd>↓</kbd> Navigate</span>
             <span><kbd>↵</kbd> Open</span>
             <span><kbd>esc</kbd> Close</span>
+            @if (searching) { <span class="muted"><i class="bi bi-arrow-clockwise"></i> searching…</span> }
         </div>
     </div>
 }
@@ -89,6 +125,10 @@
     ElementReference inputRef;
     ElementReference rootRef;
 
+    List<SearchHit>? contentHits;
+    bool searching;
+    CancellationTokenSource? cts;
+
     IEnumerable<Item> Filtered =>
         string.IsNullOrWhiteSpace(query)
             ? All
@@ -97,7 +137,35 @@
 
     protected override void OnParametersSet()
     {
-        if (Open) { active = 0; query = ""; }
+        if (Open) { active = 0; query = ""; contentHits = null; }
+    }
+
+    async Task OnQueryChanged()
+    {
+        active = 0;
+        // Debounce: cancel any in-flight query
+        cts?.Cancel();
+        cts = new CancellationTokenSource();
+        var token = cts.Token;
+
+        if (string.IsNullOrWhiteSpace(query) || query.Length < 2)
+        {
+            contentHits = null;
+            return;
+        }
+
+        try
+        {
+            await Task.Delay(180, token); // debounce window
+            if (token.IsCancellationRequested) return;
+            searching = true;
+            StateHasChanged();
+            var results = await Search.SearchAsync(query, perTypeLimit: 5, ct: token);
+            if (token.IsCancellationRequested) return;
+            contentHits = results;
+        }
+        catch (TaskCanceledException) { /* superseded */ }
+        finally { searching = false; }
     }
 
     async Task Close()
@@ -114,14 +182,17 @@
 
     void HandleKey(KeyboardEventArgs e)
     {
-        var list = Filtered.ToList();
+        var allHits = new List<(string href, int _)>();
+        if (contentHits != null) allHits.AddRange(contentHits.Select(h => (h.Href, 0)));
+        allHits.AddRange(Filtered.Select(p => (p.Href, 0)));
+
         if (e.Key == "Escape") { _ = Close(); return; }
-        if (e.Key == "ArrowDown") { active = Math.Min(active + 1, list.Count - 1); return; }
+        if (e.Key == "ArrowDown") { active = Math.Min(active + 1, allHits.Count - 1); return; }
         if (e.Key == "ArrowUp") { active = Math.Max(active - 1, 0); return; }
-        if (e.Key == "Enter" && list.Count > 0)
+        if (e.Key == "Enter" && allHits.Count > 0)
         {
-            var item = list[Math.Clamp(active, 0, list.Count - 1)];
-            _ = Go(item.Href);
+            var item = allHits[Math.Clamp(active, 0, allHits.Count - 1)];
+            _ = Go(item.href);
         }
     }
 }

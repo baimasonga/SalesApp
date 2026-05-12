@@ -12,6 +12,14 @@ public class StockTransferService
     public StockTransferService(IDbContextFactory<SalesDbContext> factory, AuditService audit)
     { _factory = factory; _audit = audit; }
 
+    public async Task<PagedResult<StockTransfer>> GetPagedAsync(int page, int pageSize, StockTransferStatus? status = null)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        var q = db.StockTransfers.Include(t => t.FromStore).Include(t => t.ToStore).Include(t => t.Items).AsQueryable();
+        if (status.HasValue) q = q.Where(t => t.Status == status.Value);
+        return await q.OrderByDescending(t => t.TransferDate).ToPagedAsync(page, pageSize);
+    }
+
     public async Task<List<StockTransfer>> GetAllAsync()
     {
         await using var db = await _factory.CreateDbContextAsync();
@@ -44,29 +52,41 @@ public class StockTransferService
     public async Task CompleteAsync(int id)
     {
         await using var db = await _factory.CreateDbContextAsync();
-        var t = await db.StockTransfers.Include(x => x.Items).FirstOrDefaultAsync(x => x.Id == id);
-        if (t == null || t.Status != StockTransferStatus.Pending) return;
-
-        foreach (var line in t.Items)
+        var tx = db.Database.IsRelational() ? await db.Database.BeginTransactionAsync() : null;
+        try
         {
-            var fromInv = await db.InventoryItems.FirstOrDefaultAsync(i => i.StoreId == t.FromStoreId && i.ProductId == line.ProductId);
-            var toInv = await db.InventoryItems.FirstOrDefaultAsync(i => i.StoreId == t.ToStoreId && i.ProductId == line.ProductId);
-            if (fromInv == null || fromInv.QuantityOnHand < line.Quantity)
-                throw new InvalidOperationException($"Insufficient stock at source for {line.ProductName}.");
+            var t = await db.StockTransfers.Include(x => x.Items).FirstOrDefaultAsync(x => x.Id == id);
+            if (t == null || t.Status != StockTransferStatus.Pending)
+            { if (tx != null) await tx.RollbackAsync(); return; }
 
-            fromInv.QuantityOnHand -= line.Quantity;
-            fromInv.UpdatedAt = DateTime.UtcNow;
-            if (toInv == null)
-                db.InventoryItems.Add(new InventoryItem { StoreId = t.ToStoreId, ProductId = line.ProductId, QuantityOnHand = line.Quantity });
-            else
+            foreach (var line in t.Items)
             {
-                toInv.QuantityOnHand += line.Quantity;
-                toInv.UpdatedAt = DateTime.UtcNow;
+                var fromInv = await db.InventoryItems.FirstOrDefaultAsync(i => i.StoreId == t.FromStoreId && i.ProductId == line.ProductId);
+                var toInv = await db.InventoryItems.FirstOrDefaultAsync(i => i.StoreId == t.ToStoreId && i.ProductId == line.ProductId);
+                if (fromInv == null || fromInv.QuantityOnHand < line.Quantity)
+                    throw new InvalidOperationException($"Insufficient stock at source for {line.ProductName}.");
+
+                fromInv.QuantityOnHand -= line.Quantity;
+                fromInv.UpdatedAt = DateTime.UtcNow;
+                if (toInv == null)
+                    db.InventoryItems.Add(new InventoryItem { StoreId = t.ToStoreId, ProductId = line.ProductId, QuantityOnHand = line.Quantity });
+                else
+                {
+                    toInv.QuantityOnHand += line.Quantity;
+                    toInv.UpdatedAt = DateTime.UtcNow;
+                }
             }
+            t.Status = StockTransferStatus.Completed;
+            await db.SaveChangesAsync();
+            if (tx != null) await tx.CommitAsync();
+            await _audit.LogAsync("Completed", "StockTransfer", t.Id, t.TransferNumber);
         }
-        t.Status = StockTransferStatus.Completed;
-        await db.SaveChangesAsync();
-        await _audit.LogAsync("Completed", "StockTransfer", t.Id, t.TransferNumber);
+        catch
+        {
+            if (tx != null) await tx.RollbackAsync();
+            throw;
+        }
+        finally { if (tx != null) await tx.DisposeAsync(); }
     }
 
     public async Task DeleteAsync(int id)

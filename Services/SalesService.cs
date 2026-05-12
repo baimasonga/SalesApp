@@ -62,6 +62,13 @@ public class SalesService
     public async Task<int> CreateAsync(Sale sale)
     {
         await using var db = await _factory.CreateDbContextAsync();
+        // Transaction guarantees: either the sale, ALL inventory decrements, and
+        // the loyalty bump commit together, or nothing does. Prevents half-saved
+        // sales where stock is decremented but the sale row was rolled back.
+        var supportsTx = db.Database.IsRelational();
+        var tx = supportsTx ? await db.Database.BeginTransactionAsync() : null;
+        try
+        {
         var gstRate = await _settings.GetAsync(SettingKeys.GstRate, 0.15m);
         var loyaltyPer = await _settings.GetAsync(SettingKeys.LoyaltyPerCurrency, 100m);
 
@@ -98,46 +105,79 @@ public class SalesService
             if (c != null) c.LoyaltyPoints += (int)(sale.Total / loyaltyPer);
         }
 
-        await db.SaveChangesAsync();
-        await _audit.LogAsync("Created", "Sale", sale.Id, $"{sale.InvoiceNumber} total={sale.Total:N2}");
-        return sale.Id;
+            await db.SaveChangesAsync();
+            if (tx != null) await tx.CommitAsync();
+            await _audit.LogAsync("Created", "Sale", sale.Id, $"{sale.InvoiceNumber} total={sale.Total:N2}");
+            return sale.Id;
+        }
+        catch
+        {
+            if (tx != null) await tx.RollbackAsync();
+            throw;
+        }
+        finally
+        {
+            if (tx != null) await tx.DisposeAsync();
+        }
     }
 
     public async Task CancelAsync(int id, string? reason = null)
     {
         await using var db = await _factory.CreateDbContextAsync();
-        var sale = await db.Sales.Include(s => s.Items).FirstOrDefaultAsync(s => s.Id == id);
-        if (sale == null) return;
-        sale.Status = SaleStatus.Cancelled;
-        foreach (var item in sale.Items)
+        var tx = db.Database.IsRelational() ? await db.Database.BeginTransactionAsync() : null;
+        try
         {
-            var inv = await db.InventoryItems
-                .FirstOrDefaultAsync(i => i.StoreId == sale.StoreId && i.ProductId == item.ProductId);
-            if (inv != null) inv.QuantityOnHand += item.Quantity;
+            var sale = await db.Sales.Include(s => s.Items).FirstOrDefaultAsync(s => s.Id == id);
+            if (sale == null) { if (tx != null) await tx.RollbackAsync(); return; }
+            sale.Status = SaleStatus.Cancelled;
+            foreach (var item in sale.Items)
+            {
+                var inv = await db.InventoryItems
+                    .FirstOrDefaultAsync(i => i.StoreId == sale.StoreId && i.ProductId == item.ProductId);
+                if (inv != null) inv.QuantityOnHand += item.Quantity;
+            }
+            await db.SaveChangesAsync();
+            if (tx != null) await tx.CommitAsync();
+            await _audit.LogAsync("Cancelled", "Sale", sale.Id, reason);
         }
-        await db.SaveChangesAsync();
-        await _audit.LogAsync("Cancelled", "Sale", sale.Id, reason);
+        catch
+        {
+            if (tx != null) await tx.RollbackAsync();
+            throw;
+        }
+        finally { if (tx != null) await tx.DisposeAsync(); }
     }
 
     public async Task RefundAsync(int id, string reason)
     {
         await using var db = await _factory.CreateDbContextAsync();
-        var loyaltyPer = await _settings.GetAsync(SettingKeys.LoyaltyPerCurrency, 100m);
-        var sale = await db.Sales.Include(s => s.Items).FirstOrDefaultAsync(s => s.Id == id);
-        if (sale == null) return;
-        sale.Status = SaleStatus.Refunded;
-        foreach (var item in sale.Items)
+        var tx = db.Database.IsRelational() ? await db.Database.BeginTransactionAsync() : null;
+        try
         {
-            var inv = await db.InventoryItems
-                .FirstOrDefaultAsync(i => i.StoreId == sale.StoreId && i.ProductId == item.ProductId);
-            if (inv != null) inv.QuantityOnHand += item.Quantity;
+            var loyaltyPer = await _settings.GetAsync(SettingKeys.LoyaltyPerCurrency, 100m);
+            var sale = await db.Sales.Include(s => s.Items).FirstOrDefaultAsync(s => s.Id == id);
+            if (sale == null) { if (tx != null) await tx.RollbackAsync(); return; }
+            sale.Status = SaleStatus.Refunded;
+            foreach (var item in sale.Items)
+            {
+                var inv = await db.InventoryItems
+                    .FirstOrDefaultAsync(i => i.StoreId == sale.StoreId && i.ProductId == item.ProductId);
+                if (inv != null) inv.QuantityOnHand += item.Quantity;
+            }
+            if (sale.CustomerId.HasValue && loyaltyPer > 0)
+            {
+                var c = await db.Customers.FindAsync(sale.CustomerId.Value);
+                if (c != null) c.LoyaltyPoints = Math.Max(0, c.LoyaltyPoints - (int)(sale.Total / loyaltyPer));
+            }
+            await db.SaveChangesAsync();
+            if (tx != null) await tx.CommitAsync();
+            await _audit.LogAsync("Refunded", "Sale", sale.Id, reason);
         }
-        if (sale.CustomerId.HasValue && loyaltyPer > 0)
+        catch
         {
-            var c = await db.Customers.FindAsync(sale.CustomerId.Value);
-            if (c != null) c.LoyaltyPoints = Math.Max(0, c.LoyaltyPoints - (int)(sale.Total / loyaltyPer));
+            if (tx != null) await tx.RollbackAsync();
+            throw;
         }
-        await db.SaveChangesAsync();
-        await _audit.LogAsync("Refunded", "Sale", sale.Id, reason);
+        finally { if (tx != null) await tx.DisposeAsync(); }
     }
 }

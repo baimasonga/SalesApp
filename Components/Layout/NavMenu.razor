@@ -1,5 +1,6 @@
 @implements IDisposable
 @inject NavigationManager Nav
+@inject CurrentUserService User
 
 <a href="/" class="brand">
     <div class="brand-mark" aria-hidden="true">
@@ -26,7 +27,7 @@
     {
         var matches = AllSections
             .SelectMany(s => s.Items)
-            .Where(i => i.Label.Contains(filter, StringComparison.OrdinalIgnoreCase))
+            .Where(i => HasRole(i.RequiredRole) && i.Label.Contains(filter, StringComparison.OrdinalIgnoreCase))
             .ToList();
         if (!matches.Any())
         {
@@ -47,9 +48,12 @@
     {
         @foreach (var sec in AllSections)
         {
+            var visibleItems = sec.Items.Where(i => HasRole(i.RequiredRole)).ToArray();
+            if (!visibleItems.Any()) { continue; }
+
             if (sec.Label == null)
             {
-                @foreach (var item in sec.Items)
+                @foreach (var item in visibleItems)
                 {
                     <a href="@item.Href" class="nav-item @(IsActive(item.Href) ? "active" : "")">
                         <i class="bi @item.Icon"></i>
@@ -60,7 +64,7 @@
             else
             {
                 var isOpen = openSections.Contains(sec.Key);
-                var hasActive = sec.Items.Any(i => IsActive(i.Href));
+                var hasActive = visibleItems.Any(i => IsActive(i.Href));
                 <div class="nav-group @(isOpen ? "open" : "") @(hasActive ? "has-active" : "")">
                     <button class="nav-group-toggle" @onclick="() => Toggle(sec.Key)" type="button">
                         <i class="bi @sec.Icon"></i>
@@ -72,7 +76,7 @@
                         <i class="bi bi-chevron-down chevron"></i>
                     </button>
                     <div class="nav-group-items">
-                        @foreach (var item in sec.Items)
+                        @foreach (var item in visibleItems)
                         {
                             <a href="@item.Href" class="nav-item @(IsActive(item.Href) ? "active" : "")">
                                 <i class="bi @item.Icon"></i>
@@ -97,8 +101,17 @@
 </div>
 
 @code {
-    record NavItem(string Label, string Href, string Icon);
+    record NavItem(string Label, string Href, string Icon, string? RequiredRole = null);
     record NavSection(string Key, string? Label, string? Icon, NavItem[] Items);
+
+    /// <summary>True if the current demo user has the required role (or higher).</summary>
+    bool HasRole(string? required)
+    {
+        if (string.IsNullOrEmpty(required)) return true;
+        if (required == "Admin") return User.IsAdmin;
+        if (required == "Manager") return User.IsManager;
+        return true;
+    }
 
     static readonly NavSection[] AllSections = new[]
     {
@@ -115,7 +128,7 @@
         }),
         new NavSection("analytics", "Analytics", "bi-graph-up-arrow", new[]
         {
-            new NavItem("Reports",        "/reports", "bi-bar-chart"),
+            new NavItem("Reports",        "/reports", "bi-bar-chart", RequiredRole: "Manager"),
             new NavItem("Sales Targets",  "/targets", "bi-bullseye"),
         }),
         new NavSection("inventory", "Inventory", "bi-box-seam", new[]
@@ -145,11 +158,11 @@
         new NavSection("admin", "Administration", "bi-gear", new[]
         {
             new NavItem("Stores",       "/stores",         "bi-shop"),
-            new NavItem("Settings",     "/settings",       "bi-sliders"),
-            new NavItem("Tenants",      "/admin/tenants",  "bi-buildings"),
-            new NavItem("SMS Console",  "/admin/sms",      "bi-chat-left-dots"),
-            new NavItem("Mobile Money", "/admin/momo",     "bi-phone"),
-            new NavItem("Audit Log",    "/audit",          "bi-shield-check"),
+            new NavItem("Settings",     "/settings",       "bi-sliders",        RequiredRole: "Admin"),
+            new NavItem("Tenants",      "/admin/tenants",  "bi-buildings",      RequiredRole: "Admin"),
+            new NavItem("SMS Console",  "/admin/sms",      "bi-chat-left-dots", RequiredRole: "Admin"),
+            new NavItem("Mobile Money", "/admin/momo",     "bi-phone",          RequiredRole: "Admin"),
+            new NavItem("Audit Log",    "/audit",          "bi-shield-check",   RequiredRole: "Manager"),
         }),
     };
 

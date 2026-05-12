@@ -53,32 +53,47 @@ else
             </div>
             <button class="btn btn-ghost btn-icon" @onclick="() => editing = null"><i class="bi bi-x-lg"></i></button>
         </div>
-        <div class="slideover-body">
-            <div class="form-section">
-                <div class="form-section-title">Identity</div>
-                <div class="form-row"><label>Name *</label><input @bind="editing.Name" /></div>
-                <div class="form-row"><label>Country</label><input @bind="editing.Country" /></div>
-                <div class="form-row"><label>Address</label><input @bind="editing.Address" /></div>
+        <EditForm Model="editing" OnValidSubmit="Save">
+            <DataAnnotationsValidator />
+            <div class="slideover-body">
+                <div class="form-section">
+                    <div class="form-section-title">Identity</div>
+                    <div class="form-row">
+                        <label>Name *</label>
+                        <InputText @bind-Value="editing.Name" />
+                        <ValidationMessage For="() => editing.Name" class="field-error" />
+                    </div>
+                    <div class="form-row"><label>Country</label><InputText @bind-Value="editing.Country" /></div>
+                    <div class="form-row"><label>Address</label><InputText @bind-Value="editing.Address" /></div>
+                </div>
+                <div class="form-section">
+                    <div class="form-section-title">Contact</div>
+                    <div class="form-row">
+                        <label>Phone</label>
+                        <InputText @bind-Value="editing.Phone" placeholder="+232 …" />
+                        <ValidationMessage For="() => editing.Phone" class="field-error" />
+                    </div>
+                    <div class="form-row">
+                        <label>Email</label>
+                        <InputText @bind-Value="editing.Email" />
+                        <ValidationMessage For="() => editing.Email" class="field-error" />
+                    </div>
+                </div>
+                <div class="form-section">
+                    <div class="form-row"><label class="flex items-center gap-2"><InputCheckbox @bind-Value="editing.IsActive" /> Active</label></div>
+                </div>
             </div>
-            <div class="form-section">
-                <div class="form-section-title">Contact</div>
-                <div class="form-row"><label>Phone</label><input @bind="editing.Phone" placeholder="+232 …" /></div>
-                <div class="form-row"><label>Email</label><input @bind="editing.Email" /></div>
+            <div class="slideover-foot">
+                @if (editing.Id != 0)
+                {
+                    <button type="button" class="btn btn-danger" style="margin-right: auto;" @onclick="() => confirmDeleteOpen = true">
+                        <i class="bi bi-trash"></i> Delete
+                    </button>
+                }
+                <button type="button" class="btn" @onclick="() => editing = null">Cancel</button>
+                <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Save supplier</button>
             </div>
-            <div class="form-section">
-                <div class="form-row"><label class="flex items-center gap-2"><input type="checkbox" @bind="editing.IsActive" /> Active</label></div>
-            </div>
-        </div>
-        <div class="slideover-foot">
-            @if (editing.Id != 0)
-            {
-                <button class="btn btn-danger" style="margin-right: auto;" @onclick="() => confirmDeleteOpen = true">
-                    <i class="bi bi-trash"></i> Delete
-                </button>
-            }
-            <button class="btn" @onclick="() => editing = null">Cancel</button>
-            <button class="btn btn-primary" @onclick="Save"><i class="bi bi-check-lg"></i> Save supplier</button>
-        </div>
+        </EditForm>
     </aside>
 }
 
@@ -102,8 +117,7 @@ else
     void Edit(Supplier s) => editing = s;
     async Task Save()
     {
-        if (string.IsNullOrWhiteSpace(editing!.Name)) { Toast.Warning("Name is required."); return; }
-        try { await Po.SaveSupplierAsync(editing); Toast.Success("Supplier saved."); editing = null; suppliers = await Po.GetSuppliersAsync(); }
+        try { await Po.SaveSupplierAsync(editing!); Toast.Success("Supplier saved."); editing = null; suppliers = await Po.GetSuppliersAsync(); }
         catch (Exception ex) { Toast.Error($"Save failed: {ex.Message}"); }
     }
 

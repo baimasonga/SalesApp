@@ -147,3 +147,4 @@ C:\Users\SECAP Training\Documents\GitHub\SalesApp\bin\Debug\net8.0\Serilog.Setti
 C:\Users\SECAP Training\Documents\GitHub\SalesApp\bin\Debug\net8.0\Serilog.Sinks.Console.dll
 C:\Users\SECAP Training\Documents\GitHub\SalesApp\bin\Debug\net8.0\Serilog.Sinks.Debug.dll
 C:\Users\SECAP Training\Documents\GitHub\SalesApp\bin\Debug\net8.0\Serilog.Sinks.File.dll
+C:\Users\SECAP Training\Documents\GitHub\SalesApp\bin\Debug\net8.0\Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore.dll

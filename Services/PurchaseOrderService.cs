@@ -41,6 +41,14 @@ public class PurchaseOrderService
         await db.SaveChangesAsync();
     }
 
+    public async Task<PagedResult<PurchaseOrder>> GetPosPagedAsync(int page, int pageSize, PurchaseOrderStatus? status = null)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        var q = db.PurchaseOrders.Include(p => p.Supplier).Include(p => p.Store).Include(p => p.Items).AsQueryable();
+        if (status.HasValue) q = q.Where(p => p.Status == status.Value);
+        return await q.OrderByDescending(p => p.OrderDate).ToPagedAsync(page, pageSize);
+    }
+
     public async Task<List<PurchaseOrder>> GetPosAsync()
     {
         await using var db = await _factory.CreateDbContextAsync();
@@ -73,26 +81,38 @@ public class PurchaseOrderService
     public async Task ReceiveAsync(int id)
     {
         await using var db = await _factory.CreateDbContextAsync();
-        var po = await db.PurchaseOrders.Include(p => p.Items).FirstOrDefaultAsync(p => p.Id == id);
-        if (po == null || po.Status == PurchaseOrderStatus.Received) return;
-
-        foreach (var line in po.Items)
+        var tx = db.Database.IsRelational() ? await db.Database.BeginTransactionAsync() : null;
+        try
         {
-            var inv = await db.InventoryItems.FirstOrDefaultAsync(i => i.StoreId == po.StoreId && i.ProductId == line.ProductId);
-            if (inv == null)
+            var po = await db.PurchaseOrders.Include(p => p.Items).FirstOrDefaultAsync(p => p.Id == id);
+            if (po == null || po.Status == PurchaseOrderStatus.Received)
+            { if (tx != null) await tx.RollbackAsync(); return; }
+
+            foreach (var line in po.Items)
             {
-                db.InventoryItems.Add(new InventoryItem { StoreId = po.StoreId, ProductId = line.ProductId, QuantityOnHand = line.Quantity });
+                var inv = await db.InventoryItems.FirstOrDefaultAsync(i => i.StoreId == po.StoreId && i.ProductId == line.ProductId);
+                if (inv == null)
+                {
+                    db.InventoryItems.Add(new InventoryItem { StoreId = po.StoreId, ProductId = line.ProductId, QuantityOnHand = line.Quantity });
+                }
+                else
+                {
+                    inv.QuantityOnHand += line.Quantity;
+                    inv.UpdatedAt = DateTime.UtcNow;
+                }
             }
-            else
-            {
-                inv.QuantityOnHand += line.Quantity;
-                inv.UpdatedAt = DateTime.UtcNow;
-            }
+            po.Status = PurchaseOrderStatus.Received;
+            po.ReceivedDate = DateTime.UtcNow;
+            await db.SaveChangesAsync();
+            if (tx != null) await tx.CommitAsync();
+            await _audit.LogAsync("Received", "PurchaseOrder", po.Id, po.PoNumber);
         }
-        po.Status = PurchaseOrderStatus.Received;
-        po.ReceivedDate = DateTime.UtcNow;
-        await db.SaveChangesAsync();
-        await _audit.LogAsync("Received", "PurchaseOrder", po.Id, po.PoNumber);
+        catch
+        {
+            if (tx != null) await tx.RollbackAsync();
+            throw;
+        }
+        finally { if (tx != null) await tx.DisposeAsync(); }
     }
 
     public async Task DeleteAsync(int id)

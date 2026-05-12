@@ -57,51 +57,66 @@ else
             </div>
             <button class="btn btn-ghost btn-icon" @onclick="() => editing = null"><i class="bi bi-x-lg"></i></button>
         </div>
-        <div class="slideover-body">
-            <div class="form-section">
-                <div class="form-section-title">Profile</div>
-                <div class="form-row"><label>Full name *</label><input @bind="editing.FullName" /></div>
-                <div class="form-row"><label>Role</label>
-                    <select @bind="editing.Role">
-                        <option>Cashier</option><option>Manager</option><option>Stock Clerk</option>
-                        <option>Driver</option><option>Admin</option>
-                    </select>
+        <EditForm Model="editing" OnValidSubmit="Save">
+            <DataAnnotationsValidator />
+            <div class="slideover-body">
+                <div class="form-section">
+                    <div class="form-section-title">Profile</div>
+                    <div class="form-row">
+                        <label>Full name *</label>
+                        <InputText @bind-Value="editing.FullName" />
+                        <ValidationMessage For="() => editing.FullName" class="field-error" />
+                    </div>
+                    <div class="form-row"><label>Role</label>
+                        <InputSelect @bind-Value="editing.Role">
+                            <option>Cashier</option><option>Manager</option><option>Stock Clerk</option>
+                            <option>Driver</option><option>Admin</option>
+                        </InputSelect>
+                    </div>
+                    <div class="form-row"><label>Store</label>
+                        <InputSelect @bind-Value="editing.StoreId">
+                            <option value="0">— None —</option>
+                            @if (stores != null) { @foreach (var s in stores) { <option value="@s.Id">@s.Name</option> } }
+                        </InputSelect>
+                    </div>
                 </div>
-                <div class="form-row"><label>Store</label>
-                    <select @bind="editing.StoreId">
-                        <option value="">— None —</option>
-                        @if (stores != null) { @foreach (var s in stores) { <option value="@s.Id">@s.Name</option> } }
-                    </select>
+                <div class="form-section">
+                    <div class="form-section-title">Contact</div>
+                    <div class="form-row">
+                        <label>Phone</label>
+                        <InputText @bind-Value="editing.Phone" placeholder="+232 …" />
+                        <ValidationMessage For="() => editing.Phone" class="field-error" />
+                    </div>
+                    <div class="form-row">
+                        <label>Email</label>
+                        <InputText @bind-Value="editing.Email" />
+                        <ValidationMessage For="() => editing.Email" class="field-error" />
+                    </div>
+                </div>
+                <div class="form-section">
+                    <div class="form-section-title">Compensation</div>
+                    <div class="form-row"><label>Monthly salary (NLe)</label><InputNumber @bind-Value="editing.MonthlySalary" /></div>
+                    <div class="form-row">
+                        <label>Commission rate</label>
+                        <InputNumber @bind-Value="editing.CommissionRate" />
+                        <span class="help">As decimal — 0.02 means 2% of attributed sales.</span>
+                    </div>
+                </div>
+                <div class="form-section">
+                    <div class="form-row"><label class="flex items-center gap-2"><InputCheckbox @bind-Value="editing.IsActive" /> Active</label></div>
                 </div>
             </div>
-            <div class="form-section">
-                <div class="form-section-title">Contact</div>
-                <div class="form-row"><label>Phone</label><input @bind="editing.Phone" placeholder="+232 …" /></div>
-                <div class="form-row"><label>Email</label><input @bind="editing.Email" /></div>
+            <div class="slideover-foot">
+                @if (editing.Id != 0)
+                {
+                    <button type="button" class="btn btn-danger" style="margin-right: auto;" @onclick="() => confirmDeleteOpen = true">
+                        <i class="bi bi-trash"></i> Delete
+                    </button>
+                }
+                <button type="button" class="btn" @onclick="() => editing = null">Cancel</button>
+                <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Save employee</button>
             </div>
-            <div class="form-section">
-                <div class="form-section-title">Compensation</div>
-                <div class="form-row"><label>Monthly salary (NLe)</label><input type="number" step="0.01" @bind="editing.MonthlySalary" /></div>
-                <div class="form-row">
-                    <label>Commission rate</label>
-                    <input type="number" step="0.001" @bind="editing.CommissionRate" />
-                    <span class="help">As decimal — 0.02 means 2% of attributed sales.</span>
-                </div>
-            </div>
-            <div class="form-section">
-                <div class="form-row"><label class="flex items-center gap-2"><input type="checkbox" @bind="editing.IsActive" /> Active</label></div>
-            </div>
-        </div>
-        <div class="slideover-foot">
-            @if (editing.Id != 0)
-            {
-                <button class="btn btn-danger" style="margin-right: auto;" @onclick="() => confirmDeleteOpen = true">
-                    <i class="bi bi-trash"></i> Delete
-                </button>
-            }
-            <button class="btn" @onclick="() => editing = null">Cancel</button>
-            <button class="btn btn-primary" @onclick="Save"><i class="bi bi-check-lg"></i> Save employee</button>
-        </div>
+        </EditForm>
     </aside>
 }
 
@@ -128,8 +143,7 @@ else
     void Edit(Employee e) => editing = e;
     async Task Save()
     {
-        if (string.IsNullOrWhiteSpace(editing!.FullName)) { Toast.Warning("Name is required."); return; }
-        try { await Emp.SaveAsync(editing); Toast.Success("Employee saved."); editing = null; employees = await Emp.GetAllAsync(); }
+        try { await Emp.SaveAsync(editing!); Toast.Success("Employee saved."); editing = null; employees = await Emp.GetAllAsync(); }
         catch (Exception ex) { Toast.Error($"Save failed: {ex.Message}"); }
     }
 

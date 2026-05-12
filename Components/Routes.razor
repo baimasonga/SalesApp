@@ -1,18 +1,43 @@
-<Router AppAssembly="typeof(Program).Assembly">
-    <Found Context="routeData">
-        <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
-        <FocusOnNavigate RouteData="routeData" Selector="h1" />
-    </Found>
-    <NotFound>
-        <LayoutView Layout="typeof(Layout.MainLayout)">
-            <div class="empty-state" style="padding: 5rem 1rem;">
-                <div class="empty-icon" style="width: 80px; height: 80px; font-size: 2rem;"><i class="bi bi-compass"></i></div>
-                <h3 style="font-size: 1.4rem;">Lost in the souk?</h3>
-                <p>The page you're looking for doesn't exist or has been moved. Try the command palette (<kbd>⌘</kbd><kbd>K</kbd>) to find what you need.</p>
-                <div class="actions">
-                    <a href="/" class="btn btn-primary"><i class="bi bi-house"></i> Back to dashboard</a>
+@using Microsoft.AspNetCore.Components.Authorization
+
+<CascadingAuthenticationState>
+    <Router AppAssembly="typeof(Program).Assembly">
+        <Found Context="routeData">
+            <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
+                <NotAuthorized>
+                    @if (context.User.Identity?.IsAuthenticated != true)
+                    {
+                        <RedirectToLogin />
+                    }
+                    else
+                    {
+                        <div class="empty-state" style="padding: 5rem 1rem;">
+                            <div class="empty-icon" style="width: 80px; height: 80px; font-size: 2rem; background: var(--danger-bg); color: var(--danger);">
+                                <i class="bi bi-shield-lock"></i>
+                            </div>
+                            <h3 style="font-size: 1.4rem;">Access denied</h3>
+                            <p>You don't have permission to view this page. Your current role is <strong>@context.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value</strong>.</p>
+                            <div class="actions">
+                                <a href="/" class="btn btn-primary"><i class="bi bi-house"></i> Back to dashboard</a>
+                                <a href="/login" class="btn"><i class="bi bi-arrow-left-right"></i> Switch user</a>
+                            </div>
+                        </div>
+                    }
+                </NotAuthorized>
+            </AuthorizeRouteView>
+            <FocusOnNavigate RouteData="routeData" Selector="h1" />
+        </Found>
+        <NotFound>
+            <LayoutView Layout="typeof(Layout.MainLayout)">
+                <div class="empty-state" style="padding: 5rem 1rem;">
+                    <div class="empty-icon" style="width: 80px; height: 80px; font-size: 2rem;"><i class="bi bi-compass"></i></div>
+                    <h3 style="font-size: 1.4rem;">Lost in the souk?</h3>
+                    <p>The page you're looking for doesn't exist or has been moved. Try the command palette (<kbd>⌘</kbd><kbd>K</kbd>) to find what you need.</p>
+                    <div class="actions">
+                        <a href="/" class="btn btn-primary"><i class="bi bi-house"></i> Back to dashboard</a>
+                    </div>
                 </div>
-            </div>
-        </LayoutView>
-    </NotFound>
-</Router>
+            </LayoutView>
+        </NotFound>
+    </Router>
+</CascadingAuthenticationState>

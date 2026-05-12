@@ -83,40 +83,60 @@ else
             <button class="btn btn-ghost btn-icon" @onclick="() => editing = null"><i class="bi bi-x-lg"></i></button>
         </div>
 
-        <div class="slideover-body">
-            <div class="form-section">
-                <div class="form-section-title">Identity</div>
-                <div class="form-row"><label>Full name *</label><input @bind="editing.FullName" /></div>
-                <div class="form-row"><label>Business name</label><input @bind="editing.BusinessName" /></div>
-                <div class="form-row"><label>Segment</label>
-                    <select @bind="editing.Segment">
-                        @foreach (var v in Enum.GetValues<CustomerSegment>()) { <option value="@v">@v</option> }
-                    </select>
+        <EditForm Model="editing" OnValidSubmit="Save">
+            <DataAnnotationsValidator />
+            <div class="slideover-body">
+                <div class="form-section">
+                    <div class="form-section-title">Identity</div>
+                    <div class="form-row">
+                        <label>Full name *</label>
+                        <InputText @bind-Value="editing.FullName" />
+                        <ValidationMessage For="() => editing.FullName" class="field-error" />
+                    </div>
+                    <div class="form-row">
+                        <label>Business name</label>
+                        <InputText @bind-Value="editing.BusinessName" />
+                        <ValidationMessage For="() => editing.BusinessName" class="field-error" />
+                    </div>
+                    <div class="form-row">
+                        <label>Segment</label>
+                        <InputSelect @bind-Value="editing.Segment">
+                            @foreach (var v in Enum.GetValues<CustomerSegment>()) { <option value="@v">@v</option> }
+                        </InputSelect>
+                    </div>
+                </div>
+                <div class="form-section">
+                    <div class="form-section-title">Contact</div>
+                    <div class="form-row">
+                        <label>Phone</label>
+                        <InputText @bind-Value="editing.Phone" placeholder="+232 …" />
+                        <ValidationMessage For="() => editing.Phone" class="field-error" />
+                    </div>
+                    <div class="form-row">
+                        <label>Email</label>
+                        <InputText @bind-Value="editing.Email" placeholder="someone@example.com" />
+                        <ValidationMessage For="() => editing.Email" class="field-error" />
+                    </div>
+                    <div class="form-row"><label>District</label><InputText @bind-Value="editing.District" /></div>
+                    <div class="form-row"><label>Address</label><InputText @bind-Value="editing.Address" /></div>
+                </div>
+                <div class="form-section">
+                    <div class="form-section-title">Notes</div>
+                    <div class="form-row"><InputTextArea rows="4" @bind-Value="editing.Notes" placeholder="Any context worth remembering…" /></div>
                 </div>
             </div>
-            <div class="form-section">
-                <div class="form-section-title">Contact</div>
-                <div class="form-row"><label>Phone</label><input @bind="editing.Phone" placeholder="+232 …" /></div>
-                <div class="form-row"><label>Email</label><input @bind="editing.Email" placeholder="someone@example.com" /></div>
-                <div class="form-row"><label>District</label><input @bind="editing.District" /></div>
-                <div class="form-row"><label>Address</label><input @bind="editing.Address" /></div>
-            </div>
-            <div class="form-section">
-                <div class="form-section-title">Notes</div>
-                <div class="form-row"><textarea rows="4" @bind="editing.Notes" placeholder="Any context worth remembering…"></textarea></div>
-            </div>
-        </div>
 
-        <div class="slideover-foot">
-            @if (editing.Id != 0)
-            {
-                <button class="btn btn-danger" style="margin-right: auto;" @onclick="() => confirmDeleteOpen = true">
-                    <i class="bi bi-trash"></i> Delete
-                </button>
-            }
-            <button class="btn" @onclick="() => editing = null">Cancel</button>
-            <button class="btn btn-primary" @onclick="Save"><i class="bi bi-check-lg"></i> Save customer</button>
-        </div>
+            <div class="slideover-foot">
+                @if (editing.Id != 0)
+                {
+                    <button type="button" class="btn btn-danger" style="margin-right: auto;" @onclick="() => confirmDeleteOpen = true">
+                        <i class="bi bi-trash"></i> Delete
+                    </button>
+                }
+                <button type="button" class="btn" @onclick="() => editing = null">Cancel</button>
+                <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i> Save customer</button>
+            </div>
+        </EditForm>
     </aside>
 }
 
@@ -188,10 +208,9 @@ else
 
     async Task Save()
     {
-        if (string.IsNullOrWhiteSpace(editing!.FullName)) { Toast.Warning("Name is required."); return; }
         try
         {
-            await Crm.SaveAsync(editing);
+            await Crm.SaveAsync(editing!);
             Toast.Success("Customer saved.");
             editing = null;
             await Reload();

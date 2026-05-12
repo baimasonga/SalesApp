@@ -27,6 +27,9 @@ public class Layaway
     [StringLength(160)]
     public string? Description { get; set; }
 
+    [Timestamp]
+    public byte[]? RowVersion { get; set; }
+
     public List<LayawayPayment> Payments { get; set; } = new();
 }
 

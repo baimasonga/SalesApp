@@ -19,4 +19,11 @@ public class InventoryItem
     public int ReorderLevel { get; set; } = 5;
 
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// Concurrency token. Two cashiers selling the last unit at the same time
+    /// will collide on save; the second SaveChanges throws DbUpdateConcurrencyException.
+    /// </summary>
+    [Timestamp]
+    public byte[]? RowVersion { get; set; }
 }

@@ -1,0 +1,85 @@
+@*
+    Compact inline editor for an integer cell. Single-click reveals an input
+    bound to the value; Enter commits, Escape cancels, blur commits.
+
+        <InlineNumberEdit Value="@i.QuantityOnHand"
+                          OnSave="v => SaveQty(i, v)" />
+*@
+
+@if (editing)
+{
+    <input type="number"
+           class="inline-edit"
+           @bind="value"
+           @onblur="Commit"
+           @onkeydown="OnKey"
+           @ref="inputRef"
+           autofocus />
+}
+else
+{
+    <button type="button" class="inline-edit-trigger @(IsLow ? "low" : "")" @onclick="Begin" title="Click to edit">
+        @Value
+    </button>
+}
+
+<style>
+    .inline-edit {
+        width: 80px;
+        padding: .2rem .35rem;
+        border: 1px solid var(--brand);
+        border-radius: 6px;
+        background: var(--surface);
+        color: var(--text);
+        font: inherit;
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        box-shadow: var(--shadow-focus);
+    }
+    .inline-edit-trigger {
+        background: transparent;
+        border: 1px dashed transparent;
+        border-radius: 4px;
+        padding: .15rem .5rem;
+        font: inherit;
+        cursor: pointer;
+        font-variant-numeric: tabular-nums;
+        color: var(--text);
+        font-weight: 600;
+    }
+    .inline-edit-trigger:hover {
+        background: var(--brand-50);
+        border-color: var(--brand-100);
+    }
+    .inline-edit-trigger.low { color: var(--danger); }
+</style>
+
+@code {
+    [Parameter] public int Value { get; set; }
+    [Parameter] public EventCallback<int> OnSave { get; set; }
+    [Parameter] public bool IsLow { get; set; }
+
+    bool editing;
+    int value;
+    int original;
+    ElementReference inputRef;
+
+    void Begin()
+    {
+        original = Value;
+        value = Value;
+        editing = true;
+    }
+
+    void OnKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") _ = Commit();
+        else if (e.Key == "Escape") { editing = false; value = original; }
+    }
+
+    async Task Commit()
+    {
+        editing = false;
+        if (value != original) await OnSave.InvokeAsync(value);
+    }
+}

@@ -1,5 +1,6 @@
 @page "/admin/sms"
 @rendermode InteractiveServer
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Policy = "AdminOnly")]
 @inject INotificationService Notif
 @inject IDbContextFactory<SalesDbContext> Db
 @inject LayoutState Layout

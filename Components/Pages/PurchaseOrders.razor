@@ -12,8 +12,8 @@
     </div>
 </div>
 
-@if (pos == null) { <Skeleton Height="200" /> }
-else if (!pos.Any())
+@if (paged == null) { <Skeleton Height="200" /> }
+else if (!paged.Items.Any())
 {
     <EmptyState Icon="bi-cart3" Title="No purchase orders" Description="Create POs to send to your suppliers; receiving them auto-credits stock to the chosen store.">
         <Actions>
@@ -26,7 +26,7 @@ else
     <table class="table">
         <thead><tr><th>PO Number</th><th>Date</th><th>Supplier</th><th>Store</th><th>Items</th><th class="text-right">Total</th><th>Status</th><th></th></tr></thead>
         <tbody>
-            @foreach (var p in pos)
+            @foreach (var p in paged.Items)
             {
                 <tr>
                     <td><strong>@p.PoNumber</strong></td>
@@ -53,25 +53,34 @@ else
             }
         </tbody>
     </table>
+
+    <Pager Page="page" PageSize="pageSize" TotalCount="paged.TotalCount"
+           PageChanged="OnPageChanged" PageSizeChanged="OnPageSizeChanged" />
 }
 
 @code {
-    List<PurchaseOrder>? pos;
+    PagedResult<PurchaseOrder>? paged;
+    int page = 1;
+    int pageSize = 25;
     bool confirmDeleteOpen;
     PurchaseOrder? deletingPo;
     protected override async Task OnInitializedAsync()
     {
         Layout.Set("Purchase Orders", "Stock orders sent to suppliers");
-        pos = await Po.GetPosAsync();
+        paged = await Po.GetPosPagedAsync(page, pageSize);
+    }
+
+    async Task OnPageChanged(int p) { page = p; paged = await Po.GetPosPagedAsync(page, pageSize); }
+    async Task OnPageSizeChanged(int s) { pageSize = s; page = 1; paged = await Po.GetPosPagedAsync(page, pageSize);
     }
     async Task Receive(int id)
     {
-        try { await Po.ReceiveAsync(id); Toast.Success("Stock received."); pos = await Po.GetPosAsync(); }
+        try { await Po.ReceiveAsync(id); Toast.Success("Stock received."); paged = await Po.GetPosPagedAsync(page, pageSize); }
         catch (Exception ex) { Toast.Error(ex.Message); }
     }
     async Task Cancel(int id)
     {
-        try { await Po.CancelAsync(id); Toast.Warning("PO cancelled."); pos = await Po.GetPosAsync(); }
+        try { await Po.CancelAsync(id); Toast.Warning("PO cancelled."); paged = await Po.GetPosPagedAsync(page, pageSize); }
         catch (Exception ex) { Toast.Error(ex.Message); }
     }
 
@@ -80,7 +89,7 @@ else
     async Task DoDelete()
     {
         if (deletingPo == null) return;
-        try { await Po.DeleteAsync(deletingPo.Id); Toast.Success("PO deleted."); pos = await Po.GetPosAsync(); }
+        try { await Po.DeleteAsync(deletingPo.Id); Toast.Success("PO deleted."); paged = await Po.GetPosPagedAsync(page, pageSize); }
         catch (InvalidOperationException ex) { Toast.Warning(ex.Message); }
         catch (Exception ex) { Toast.Error(ex.Message); }
         finally { deletingPo = null; }

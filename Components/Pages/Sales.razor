@@ -6,6 +6,7 @@
 @inject ToastService Toast
 @inject NavigationManager Nav
 @inject IJSRuntime JS
+@inject SavedViewService Views
 
 <PageTitle>Sales</PageTitle>
 
@@ -17,6 +18,15 @@
 </div>
 
 <div class="filter-bar">
+    @if (savedViews != null && savedViews.Any())
+    {
+        <label>Saved view
+            <select @bind="currentViewId" @bind:after="ApplySavedView">
+                <option value="0">— None —</option>
+                @foreach (var v in savedViews) { <option value="@v.Id">@v.Name</option> }
+            </select>
+        </label>
+    }
     <label>From<input type="date" @bind="from" @bind:after="ApplyFilter" /></label>
     <label>To<input type="date" @bind="to" @bind:after="ApplyFilter" /></label>
     <label>Store
@@ -26,7 +36,29 @@
         </select>
     </label>
     <button class="btn btn-ghost" @onclick="ClearFilters"><i class="bi bi-x-lg"></i> Clear</button>
+    <button class="btn" @onclick="() => showSaveView = true"><i class="bi bi-bookmark-plus"></i> Save view</button>
+    @if (currentViewId > 0)
+    {
+        <button class="btn btn-ghost btn-sm" @onclick="DeleteCurrentView" title="Delete this saved view"><i class="bi bi-trash"></i></button>
+    }
 </div>
+
+@if (showSaveView)
+{
+    <div class="modal-backdrop" @onclick="() => showSaveView = false"></div>
+    <div class="modal">
+        <h3><i class="bi bi-bookmark-plus"></i> Save current filters</h3>
+        <p class="muted">Name this combination of filters so you can re-apply it with one click.</p>
+        <div class="form-row">
+            <label>View name</label>
+            <input @bind="newViewName" placeholder="e.g. Bo Store · Last 7 days" autofocus />
+        </div>
+        <div class="modal-actions">
+            <button class="btn" @onclick="() => showSaveView = false">Cancel</button>
+            <button class="btn btn-primary" @onclick="SaveCurrentView"><i class="bi bi-check-lg"></i> Save view</button>
+        </div>
+    </div>
+}
 
 @if (paged == null) { <Skeleton Height="240" /> }
 else if (!paged.Items.Any())
@@ -120,6 +152,13 @@ else
     bool allSelected;
     bool bulkCancelOpen;
 
+    List<SavedView>? savedViews;
+    int currentViewId = 0;
+    bool showSaveView;
+    string newViewName = "";
+
+    record FilterSnapshot(string? From, string? To, int StoreId);
+
     string CsvUrl
     {
         get
@@ -136,7 +175,55 @@ else
     {
         Layout.Set("Sales", "All transactions across stores");
         stores = await Inv.GetStoresAsync();
+        savedViews = await Views.GetForPageAsync("sales");
         await Reload();
+    }
+
+    async Task ApplySavedView()
+    {
+        if (currentViewId == 0) return;
+        var v = savedViews?.FirstOrDefault(x => x.Id == currentViewId);
+        if (v == null) return;
+        try
+        {
+            var snap = System.Text.Json.JsonSerializer.Deserialize<FilterSnapshot>(v.FiltersJson);
+            if (snap != null)
+            {
+                from = string.IsNullOrEmpty(snap.From) ? null : DateTime.Parse(snap.From);
+                to   = string.IsNullOrEmpty(snap.To)   ? null : DateTime.Parse(snap.To);
+                storeId = snap.StoreId;
+                page = 1;
+                await Reload();
+                Toast.Success($"Applied: {v.Name}");
+            }
+        }
+        catch (Exception ex) { Toast.Error($"Failed to apply view: {ex.Message}"); }
+    }
+
+    async Task SaveCurrentView()
+    {
+        if (string.IsNullOrWhiteSpace(newViewName)) { Toast.Warning("Give the view a name."); return; }
+        var snap = new FilterSnapshot(from?.ToString("yyyy-MM-dd"), to?.ToString("yyyy-MM-dd"), storeId);
+        var json = System.Text.Json.JsonSerializer.Serialize(snap);
+        var v = await Views.SaveAsync("sales", newViewName.Trim(), json);
+        Toast.Success($"Saved view: {v.Name}");
+        showSaveView = false;
+        newViewName = "";
+        savedViews = await Views.GetForPageAsync("sales");
+        currentViewId = v.Id;
+    }
+
+    async Task DeleteCurrentView()
+    {
+        if (currentViewId == 0) return;
+        try
+        {
+            await Views.DeleteAsync(currentViewId);
+            Toast.Success("View deleted.");
+            currentViewId = 0;
+            savedViews = await Views.GetForPageAsync("sales");
+        }
+        catch (Exception ex) { Toast.Error(ex.Message); }
     }
 
     async Task Reload()

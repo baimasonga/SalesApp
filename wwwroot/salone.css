@@ -405,6 +405,26 @@ input.search:focus {
 .form-row.error input, .form-row.error select { border-color: var(--danger); }
 .form-row.error input:focus { box-shadow: 0 0 0 3px rgba(239, 68, 68, .15); }
 
+/* Validation messages from <ValidationMessage> */
+.field-error,
+.validation-message {
+    color: var(--danger);
+    font-size: .72rem;
+    margin-top: .25rem;
+    line-height: 1.3;
+}
+.field-error::before, .validation-message::before {
+    content: "\F33B"; /* bi-exclamation-circle */
+    font-family: "bootstrap-icons";
+    margin-right: .25rem;
+    font-size: .8em;
+}
+.invalid {
+    border-color: var(--danger) !important;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, .12) !important;
+}
+.valid.modified { border-color: var(--success) !important; }
+
 .search { width: 100%; }
 .input-group { position: relative; display: flex; align-items: center; }
 .input-group .bi {

@@ -14,17 +14,17 @@
 
 <div class="filter-bar">
     <label>Store
-        <select @bind="filterStoreId" @bind:after="Reload">
+        <select @bind="filterStoreId" @bind:after="ApplyFilter">
             <option value="0">All stores</option>
             @if (stores != null) { @foreach (var s in stores) { <option value="@s.Id">@s.Name</option> } }
         </select>
     </label>
 </div>
 
-@if (items == null) { <p>Loading…</p> }
+@if (paged == null) { <Skeleton Height="240" /> }
 else
 {
-    var lowCount = items.Count(i => i.QuantityOnHand <= i.ReorderLevel);
+    var lowCount = paged.Items.Count(i => i.QuantityOnHand <= i.ReorderLevel);
     @if (lowCount > 0)
     {
         <div class="alert-warning mb-3">
@@ -36,15 +36,21 @@ else
     <table class="table">
         <thead><tr><th>Store</th><th>SKU</th><th>Product</th><th class="text-right">On Hand</th><th class="text-right">Reorder</th><th>Status</th><th>Adjust</th></tr></thead>
         <tbody>
-            @foreach (var i in items)
+            @foreach (var i in paged.Items)
             {
                 var low = i.QuantityOnHand <= i.ReorderLevel;
                 <tr class="@(low ? "row-low" : "")">
                     <td>@i.Store?.Name</td>
                     <td><code>@i.Product?.Sku</code></td>
                     <td>@i.Product?.Name</td>
-                    <td class="text-right"><strong>@i.QuantityOnHand</strong></td>
-                    <td class="text-right">@i.ReorderLevel</td>
+                    <td class="text-right">
+                        <InlineNumberEdit Value="i.QuantityOnHand" IsLow="low"
+                                          OnSave="v => SetQty(i, v)" />
+                    </td>
+                    <td class="text-right">
+                        <InlineNumberEdit Value="i.ReorderLevel"
+                                          OnSave="v => SetReorder(i, v)" />
+                    </td>
                     <td>@if (low) { <span class="status status-cancelled"><i class="bi bi-exclamation-triangle"></i> Low</span> } else { <span class="status status-completed">OK</span> }</td>
                     <td>
                         <div class="btn-row">
@@ -57,10 +63,15 @@ else
             }
         </tbody>
     </table>
+
+    <Pager Page="page" PageSize="pageSize" TotalCount="paged.TotalCount"
+           PageChanged="OnPageChanged" PageSizeChanged="OnPageSizeChanged" />
 }
 
 @code {
-    List<InventoryItem>? items;
+    PagedResult<InventoryItem>? paged;
+    int page = 1;
+    int pageSize = 25;
     List<Store>? stores;
     int filterStoreId = 0;
 
@@ -73,12 +84,28 @@ else
 
     async Task Reload()
     {
-        items = await Inv.GetInventoryAsync(filterStoreId == 0 ? null : filterStoreId);
+        paged = await Inv.GetInventoryPagedAsync(page, pageSize, filterStoreId == 0 ? null : filterStoreId);
     }
+
+    async Task ApplyFilter() { page = 1; await Reload(); }
+    async Task OnPageChanged(int p) { page = p; await Reload(); }
+    async Task OnPageSizeChanged(int s) { pageSize = s; page = 1; await Reload(); }
 
     async Task Adjust(InventoryItem i, int delta)
     {
         await Inv.AdjustStockAsync(i.StoreId, i.ProductId, delta);
+        await Reload();
+    }
+
+    async Task SetQty(InventoryItem i, int qty)
+    {
+        await Inv.SetStockAsync(i.StoreId, i.ProductId, qty);
+        await Reload();
+    }
+
+    async Task SetReorder(InventoryItem i, int level)
+    {
+        await Inv.SetReorderLevelAsync(i.StoreId, i.ProductId, level);
         await Reload();
     }
 }

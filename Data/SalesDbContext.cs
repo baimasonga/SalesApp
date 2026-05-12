@@ -41,6 +41,7 @@ public class SalesDbContext : DbContext
     public DbSet<Setting> Settings => Set<Setting>();
     public DbSet<MoMoTransaction> MoMoTransactions => Set<MoMoTransaction>();
     public DbSet<SmsLog> SmsLogs => Set<SmsLog>();
+    public DbSet<SavedView> SavedViews => Set<SavedView>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {

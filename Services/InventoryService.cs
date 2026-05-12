@@ -116,6 +116,33 @@ public class InventoryService
         await db.SaveChangesAsync();
     }
 
+    public async Task SetStockAsync(int storeId, int productId, int absoluteQty)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        var inv = await db.InventoryItems.FirstOrDefaultAsync(i => i.StoreId == storeId && i.ProductId == productId);
+        if (inv == null)
+        {
+            inv = new InventoryItem { StoreId = storeId, ProductId = productId, QuantityOnHand = Math.Max(0, absoluteQty) };
+            db.InventoryItems.Add(inv);
+        }
+        else
+        {
+            inv.QuantityOnHand = Math.Max(0, absoluteQty);
+            inv.UpdatedAt = DateTime.UtcNow;
+        }
+        await db.SaveChangesAsync();
+    }
+
+    public async Task SetReorderLevelAsync(int storeId, int productId, int level)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        var inv = await db.InventoryItems.FirstOrDefaultAsync(i => i.StoreId == storeId && i.ProductId == productId);
+        if (inv == null) return;
+        inv.ReorderLevel = Math.Max(0, level);
+        inv.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+    }
+
     public async Task AdjustStockAsync(int storeId, int productId, int delta)
     {
         await using var db = await _factory.CreateDbContextAsync();

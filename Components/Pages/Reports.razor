@@ -1,5 +1,6 @@
 @page "/reports"
 @rendermode InteractiveServer
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Policy = "ManagerOrAdmin")]
 @inject AnalyticsService Analytics
 @inject ExpenseService Ex
 @inject LayoutState Layout

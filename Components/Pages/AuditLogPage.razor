@@ -1,5 +1,6 @@
 @page "/audit"
 @rendermode InteractiveServer
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Policy = "ManagerOrAdmin")]
 @inject AuditService Audit
 @inject SettingsService Settings
 @inject LayoutState Layout

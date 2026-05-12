@@ -27,6 +27,36 @@ Log.Logger = new LoggerConfiguration()
 var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseSerilog();
 
+// Health checks: DB connectivity + always-ready liveness
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<SalesApp.Data.SalesDbContext>("database", tags: new[] { "ready" });
+
+// Rate limiting (.NET 8 built-in)
+builder.Services.AddRateLimiter(opt =>
+{
+    opt.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    // MoMo webhook: 60 requests / minute per IP (operator should not need more)
+    opt.AddPolicy("momo-webhook", ctx =>
+        System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: ctx.Connection.RemoteIpAddress?.ToString() ?? "anon",
+            factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 60,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+            }));
+    // SMS test endpoint: 10 / minute / IP
+    opt.AddPolicy("sms-test", ctx =>
+        System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: ctx.Connection.RemoteIpAddress?.ToString() ?? "anon",
+            factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+            }));
+});
+
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
@@ -71,6 +101,17 @@ if (authEnabled)
         .AddPolicy("ManagerOrAdmin", p => p.RequireRole("Manager", "Admin"))
         .AddPolicy("AdminOnly", p => p.RequireRole("Admin"));
 }
+else
+{
+    // Demo mode: synthesize an AuthenticationState from CurrentUserService so
+    // [Authorize] checks and role-based policies work uniformly. The "Sign in"
+    // page sets the demo role; policies enforce based on that role.
+    builder.Services.AddScoped<Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider, DemoAuthStateProvider>();
+    builder.Services.AddAuthorizationBuilder()
+        .AddPolicy("ManagerOrAdmin", p => p.RequireRole("Manager", "Admin"))
+        .AddPolicy("AdminOnly", p => p.RequireRole("Admin"));
+    builder.Services.AddCascadingAuthenticationState();
+}
 
 // ----- App services
 builder.Services.AddScoped<CurrentUserService>();
@@ -89,6 +130,8 @@ builder.Services.AddScoped<TenantContext>(sp =>
     };
 });
 builder.Services.AddScoped<SettingsService>();
+builder.Services.AddScoped<SearchService>();
+builder.Services.AddScoped<SavedViewService>();
 builder.Services.AddScoped<AuditService>();
 builder.Services.AddScoped<SalesService>();
 builder.Services.AddScoped<InventoryService>();
@@ -116,6 +159,7 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
+app.UseRateLimiter();
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseAntiforgery();
@@ -126,8 +170,36 @@ if (authEnabled)
     app.UseAuthorization();
 }
 
-// ----- Health & readiness probes
-app.MapGet("/health", () => Results.Json(new { status = "ok", time = DateTime.UtcNow }));
+// ----- Health & readiness probes (standardized ASP.NET Core HealthCheck endpoints)
+// /health/live  → simple liveness, always returns 200 if the process is running
+// /health/ready → readiness, returns 200 only if DB is reachable
+app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = _ => false, // no checks; just confirm the process is up
+});
+app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready"),
+    ResponseWriter = async (ctx, report) =>
+    {
+        ctx.Response.ContentType = "application/json";
+        var body = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            status = report.Status.ToString().ToLowerInvariant(),
+            totalDuration = report.TotalDuration.TotalMilliseconds,
+            checks = report.Entries.Select(e => new {
+                name = e.Key,
+                status = e.Value.Status.ToString().ToLowerInvariant(),
+                duration = e.Value.Duration.TotalMilliseconds,
+                description = e.Value.Description,
+                error = e.Value.Exception?.Message
+            })
+        });
+        await ctx.Response.WriteAsync(body);
+    }
+});
+
+// Legacy ad-hoc probe (back-compat for anything calling /health/ready directly)
 app.MapGet("/health/ready", async (IDbContextFactory<SalesDbContext> factory) =>
 {
     try
@@ -217,14 +289,14 @@ app.MapPost("/webhook/momo", async (HttpContext ctx, MobileMoneyService momo, IC
     {
         return Results.BadRequest(new { error = ex.Message });
     }
-});
+}).RequireRateLimiting("momo-webhook");
 
 // Test SMS endpoint (dev only - use a query string)
 app.MapPost("/api/test/sms", async (INotificationService sms, string phone, string message) =>
 {
     var r = await sms.SendSmsAsync(phone, message);
     return Results.Json(r);
-});
+}).RequireRateLimiting("sms-test");
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();

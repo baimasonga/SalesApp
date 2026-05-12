@@ -1,5 +1,6 @@
 @page "/admin/momo"
 @rendermode InteractiveServer
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Policy = "AdminOnly")]
 @inject MobileMoneyService Momo
 @inject IDbContextFactory<SalesDbContext> Db
 @inject LayoutState Layout
