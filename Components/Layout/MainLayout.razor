@@ -7,6 +7,7 @@
 @inject ThemeService Theme
 @inject NavDrawerState Drawer
 @inject IJSRuntime JS
+@inject LicenseService Licenses
 
 <div class="page @(Drawer.IsOpen ? "drawer-open" : "")">
     <aside class="sidebar @(Drawer.IsOpen ? "open" : "")">
@@ -104,6 +105,23 @@
             </div>
         </header>
 
+        @if (license != null && !license.IsValid)
+        {
+            <div class="license-banner expired">
+                <i class="bi bi-shield-exclamation"></i>
+                <span><strong>License expired.</strong> @license.Message</span>
+                <a href="/license" class="btn btn-sm">Renew</a>
+            </div>
+        }
+        else if (license != null && license.IsTrial && license.DaysRemaining <= 14)
+        {
+            <div class="license-banner trial">
+                <i class="bi bi-clock-history"></i>
+                <span><strong>Trial:</strong> @license.DaysRemaining day(s) remaining. Activate a paid key on the License page.</span>
+                <a href="/license" class="btn btn-sm">Activate</a>
+            </div>
+        }
+
         <article class="content">
             <ErrorBoundary @ref="errorBoundary">
                 <ChildContent>@Body</ChildContent>
@@ -164,6 +182,7 @@
     bool cmdkOpen;
     ErrorBoundary? errorBoundary;
     DotNetObjectReference<MainLayout>? selfRef;
+    LicenseService.LicenseStatus? license;
 
     void RecoverFromError() => errorBoundary?.Recover();
 
@@ -179,6 +198,8 @@
             lowStockCount = low.Count;
         }
         catch { }
+        try { license = await Licenses.EvaluateAsync(); }
+        catch { /* license check is non-fatal — app still works */ }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)

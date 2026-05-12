@@ -1,0 +1,70 @@
+@page "/about"
+@rendermode InteractiveServer
+@inject LayoutState Layout
+@inject LicenseService Licenses
+
+<PageTitle>About</PageTitle>
+
+<div class="page-header"></div>
+
+<div class="grid-2">
+    <div class="card">
+        <h3>About Salone Sales</h3>
+        <p>A complete sales, inventory, CRM, finance and analytics platform built for the Sierra Leone business community.</p>
+        <p class="muted">Designed and engineered to run on Windows shops, locally — no internet required for daily operations.</p>
+
+        <table class="table mt-3">
+            <tbody>
+                <tr><td>Version</td><td class="tabular">@version</td></tr>
+                <tr><td>Build</td><td class="tabular">@buildDate</td></tr>
+                <tr><td>Framework</td><td>.NET @Environment.Version</td></tr>
+                <tr><td>Host</td><td>@Environment.MachineName · @Environment.OSVersion</td></tr>
+                <tr><td>Commit</td><td><code>@commit</code></td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>License</h3>
+        @if (status != null)
+        {
+            <p>
+                <span class="badge">@status.Tier</span>
+                <strong>@status.LicensedTo</strong>
+            </p>
+            <p class="@(status.IsValid ? "alert-success" : "error")">@status.Message</p>
+            <a href="/license" class="btn btn-primary mt-2"><i class="bi bi-key"></i> Manage license</a>
+        }
+    </div>
+
+    <div class="card">
+        <h3>Support</h3>
+        <p>For help, training, or to request features:</p>
+        <ul>
+            <li><strong>Email:</strong> support@salonesales.sl</li>
+            <li><strong>Phone / WhatsApp:</strong> +232 76 000 000</li>
+            <li><strong>Office hours:</strong> Monday–Saturday, 8am–6pm</li>
+        </ul>
+        <p class="muted text-xs">When opening a ticket, include the <strong>version</strong> and <strong>commit</strong> shown on this page.</p>
+    </div>
+
+    <div class="card">
+        <h3>Acknowledgements</h3>
+        <p class="muted text-xs">Built with ASP.NET Core 8 Blazor, Entity Framework Core, Bootstrap Icons, Inter typeface, Chart.js, SQLite, and Serilog.</p>
+        <p class="muted text-xs">© @DateTime.UtcNow.Year Salone Sales. All rights reserved.</p>
+    </div>
+</div>
+
+@code {
+    LicenseService.LicenseStatus? status;
+    string version = typeof(Program).Assembly.GetName().Version?.ToString() ?? "unknown";
+    string buildDate = "";
+    string commit = Environment.GetEnvironmentVariable("COMMIT_SHA") ?? "dev";
+
+    protected override async Task OnInitializedAsync()
+    {
+        Layout.Set("About", "Version, license, and support");
+        buildDate = System.IO.File.GetLastWriteTimeUtc(typeof(Program).Assembly.Location).ToString("dd MMM yyyy HH:mm 'UTC'");
+        status = await Licenses.EvaluateAsync();
+    }
+}

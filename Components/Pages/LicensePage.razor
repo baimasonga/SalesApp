@@ -1,0 +1,108 @@
+@page "/license"
+@rendermode InteractiveServer
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Policy = "ManagerOrAdmin")]
+@inject LicenseService Licenses
+@inject LayoutState Layout
+@inject ToastService Toast
+
+<PageTitle>License</PageTitle>
+
+<div class="page-header"></div>
+
+@if (status == null) { <Skeleton Height="200" /> }
+else
+{
+    <div class="grid-2">
+        <div class="card">
+            <h3>Current license</h3>
+            <div class="license-status @(status.IsValid ? "ok" : "expired")">
+                <i class="bi @(status.IsValid ? "bi-shield-check" : "bi-shield-exclamation")"></i>
+                <div>
+                    <strong>@status.Message</strong>
+                    <p class="muted text-xs mb-0">
+                        @if (status.IsTrial) { <span>This is an evaluation license. Activate a paid key below.</span> }
+                        else { <span>Licensed to <strong>@status.LicensedTo</strong>.</span> }
+                    </p>
+                </div>
+            </div>
+
+            <table class="table mt-3">
+                <tbody>
+                    <tr><td>Licensed to</td><td><strong>@status.LicensedTo</strong></td></tr>
+                    <tr><td>Tier</td><td><span class="badge">@status.Tier</span></td></tr>
+                    <tr><td>Expires</td><td class="tabular">@status.ExpiresAt.ToString("dd MMM yyyy")</td></tr>
+                    <tr><td>Days remaining</td>
+                        <td class="tabular">
+                            <strong style="color:@(status.DaysRemaining < 7 ? "var(--danger)" : status.DaysRemaining < 30 ? "var(--warning)" : "var(--success)")">@status.DaysRemaining</strong>
+                        </td></tr>
+                    <tr><td>Machine fingerprint</td><td><code>@machineId</code></td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <h3>Activate a paid license</h3>
+            <p class="muted">Paste the key emailed to you by Salone Sales sales. Activation is offline — the key is HMAC-signed and validated locally.</p>
+            <div class="form-row">
+                <label>License key</label>
+                <textarea rows="4" @bind="enteredKey" placeholder="SALONE-..." style="font-family: ui-monospace, monospace; font-size: .8rem;"></textarea>
+            </div>
+            <button class="btn btn-primary" @onclick="Activate" disabled="@activating">
+                @if (activating) { <span><i class="bi bi-arrow-clockwise"></i> Activating…</span> }
+                else { <span><i class="bi bi-key"></i> Activate</span> }
+            </button>
+            @if (!string.IsNullOrEmpty(error)) { <p class="error">@error</p> }
+
+            <div class="alert-info mt-3">
+                <i class="bi bi-info-circle"></i>
+                When buying a license, send your <strong>machine fingerprint</strong> (<code>@machineId</code>) to <code>sales@salonesales.sl</code> — we bind your key to your installation.
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .license-status {
+        display: flex; align-items: center; gap: 1rem;
+        padding: 1rem 1.1rem;
+        border-radius: var(--radius-lg);
+        border: 1px solid var(--border);
+    }
+    .license-status .bi { font-size: 1.6rem; flex-shrink: 0; }
+    .license-status.ok       { background: var(--success-bg); border-color: var(--success-border); color: var(--success-600); }
+    .license-status.ok .bi   { color: var(--success); }
+    .license-status.expired  { background: var(--danger-bg);  border-color: var(--danger-border);  color: var(--danger);     }
+    .license-status.expired .bi { color: var(--danger); }
+</style>
+
+@code {
+    LicenseService.LicenseStatus? status;
+    string? machineId;
+    string enteredKey = "";
+    bool activating;
+    string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Layout.Set("License", "Activation and feature entitlements");
+        await Refresh();
+        machineId = Licenses.MachineFingerprint();
+    }
+
+    async Task Refresh() => status = await Licenses.EvaluateAsync();
+
+    async Task Activate()
+    {
+        error = null;
+        activating = true;
+        try
+        {
+            await Licenses.ActivateAsync(enteredKey);
+            Toast.Success("License activated.");
+            enteredKey = "";
+            await Refresh();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { activating = false; }
+    }
+}

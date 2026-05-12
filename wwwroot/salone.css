@@ -1213,6 +1213,21 @@ html[data-theme="dark"] .topbar { background: rgba(13, 20, 36, .85); }
 .table tr.is-selected { background: var(--brand-50); }
 .table tr.is-selected:hover { background: #e0e7ff; }
 
+/* Commercial license banner — shown at top of content when expired or trial nearly up */
+.license-banner {
+    display: flex; align-items: center; gap: .65rem;
+    padding: .65rem 1.25rem;
+    border-bottom: 1px solid;
+    font-size: .85rem;
+}
+.license-banner .bi { font-size: 1rem; }
+.license-banner span { flex: 1; }
+.license-banner.trial   { background: var(--warning-bg); color: #92400e; border-bottom-color: var(--warning-border); }
+.license-banner.trial   .bi { color: var(--warning); }
+.license-banner.expired { background: var(--danger-bg);  color: #991b1b; border-bottom-color: var(--danger-border); }
+.license-banner.expired .bi { color: var(--danger); }
+.license-banner .btn { white-space: nowrap; }
+
 /* Global error boundary */
 .error-boundary {
     max-width: 560px;

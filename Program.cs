@@ -27,6 +27,17 @@ Log.Logger = new LoggerConfiguration()
 var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseSerilog();
 
+// ----- Windows Service hosting (commercial desktop install)
+// When the service installer launches us with RUN_AS_SERVICE=1, integrate with
+// Windows Service Control Manager so the app starts at boot and the SCM can
+// stop/restart cleanly. Content root anchored at the install folder so
+// the SQLite file, logs, and config resolve from there (not system32).
+if (OperatingSystem.IsWindows() && Environment.GetEnvironmentVariable("RUN_AS_SERVICE") == "1")
+{
+    builder.Host.UseWindowsService(o => o.ServiceName = "SaloneSales");
+    builder.Host.UseContentRoot(AppContext.BaseDirectory);
+}
+
 // Health checks: DB connectivity + always-ready liveness
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<SalesApp.Data.SalesDbContext>("database", tags: new[] { "ready" });
@@ -61,15 +72,35 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
 // ----- Database
-var provider = builder.Configuration["Database:Provider"] ?? "SqlServer";
-var connStr = builder.Configuration.GetConnectionString("Default")
-              ?? @"Server=.\SQLEXPRESS;Database=SalesAppDb;Trusted_Connection=True;TrustServerCertificate=True;";
+// Three providers supported. Pick via Database:Provider in appsettings:
+//   "InMemory"  — demo only, data lost on restart
+//   "Sqlite"    — single-file DB, ideal for Windows desktop install
+//   "SqlServer" — SQL Express / SQL Server for multi-station / server deploys
+var provider = builder.Configuration["Database:Provider"] ?? "Sqlite";
+var connStr = builder.Configuration.GetConnectionString("Default");
+
+// Sensible defaults when no connection string configured
+if (string.IsNullOrEmpty(connStr))
+{
+    connStr = provider.Equals("Sqlite", StringComparison.OrdinalIgnoreCase)
+        ? $"Data Source={Path.Combine(AppContext.BaseDirectory, "data", "salone.db")}"
+        : @"Server=.\SQLEXPRESS;Database=SalesAppDb;Trusted_Connection=True;TrustServerCertificate=True;";
+}
+
+// Make sure the SQLite data directory exists before EF tries to open the file
+if (provider.Equals("Sqlite", StringComparison.OrdinalIgnoreCase))
+{
+    var dbDir = Path.Combine(AppContext.BaseDirectory, "data");
+    Directory.CreateDirectory(dbDir);
+}
 
 builder.Services.AddScoped<AuditInterceptor>();
 builder.Services.AddDbContextFactory<SalesDbContext>((sp, opt) =>
 {
     if (provider.Equals("InMemory", StringComparison.OrdinalIgnoreCase))
         opt.UseInMemoryDatabase("SalesAppDb");
+    else if (provider.Equals("Sqlite", StringComparison.OrdinalIgnoreCase))
+        opt.UseSqlite(connStr);
     else
         opt.UseSqlServer(connStr);
     // Auto-audit every SaveChanges via interceptor
@@ -84,6 +115,8 @@ if (authEnabled)
     {
         if (provider.Equals("InMemory", StringComparison.OrdinalIgnoreCase))
             opt.UseInMemoryDatabase("IdentityDb");
+        else if (provider.Equals("Sqlite", StringComparison.OrdinalIgnoreCase))
+            opt.UseSqlite(connStr);
         else
             opt.UseSqlServer(connStr);
     });
@@ -134,6 +167,7 @@ builder.Services.AddScoped<TenantContext>(sp =>
 builder.Services.AddScoped<SettingsService>();
 builder.Services.AddScoped<SearchService>();
 builder.Services.AddScoped<SavedViewService>();
+builder.Services.AddScoped<LicenseService>();
 builder.Services.AddScoped<AuditService>();
 builder.Services.AddScoped<SalesService>();
 builder.Services.AddScoped<InventoryService>();

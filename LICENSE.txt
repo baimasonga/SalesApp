@@ -1,0 +1,52 @@
+SALONE SALES — END USER LICENSE AGREEMENT
+
+Copyright (c) 2026 Salone Sales. All rights reserved.
+
+This is a commercial software product. By installing or using this software,
+you agree to be bound by the terms of this agreement.
+
+1. EVALUATION USE
+   You may use this software for a 30-day evaluation period on a single
+   computer for the purpose of determining whether it meets your needs.
+
+2. LICENSED USE
+   Continued use beyond the evaluation period requires a paid license key.
+   Each license key is bound to one machine (identified by hardware
+   fingerprint). To purchase, contact sales@salonesales.sl.
+
+3. PERMITTED USES
+   Subject to a valid license, you may:
+   - Install and use the software on the licensed machine for your business
+   - Make one backup copy for archival purposes
+   - Configure and customize through the Settings page
+
+4. PROHIBITED USES
+   You may not:
+   - Decompile, reverse engineer, or disassemble the software
+   - Redistribute, sublicense, rent, lease, or sell the software
+   - Remove or alter any copyright notices or proprietary marks
+   - Use the software for any unlawful purpose
+
+5. DATA OWNERSHIP
+   You own all data you enter into the system. The software vendor has no
+   right to access, view, or use your business data.
+
+6. NO WARRANTY
+   The software is provided "as is" without warranty of any kind, express or
+   implied. The vendor disclaims all warranties to the maximum extent
+   permitted by law.
+
+7. LIMITATION OF LIABILITY
+   In no event shall the vendor be liable for any indirect, incidental,
+   special, or consequential damages arising from the use of or inability
+   to use this software.
+
+8. TERMINATION
+   This license terminates automatically if you fail to comply with its
+   terms. Upon termination, you must cease all use and destroy all copies.
+
+9. GOVERNING LAW
+   This agreement is governed by the laws of Sierra Leone.
+
+For support: support@salonesales.sl
+For sales:   sales@salonesales.sl
