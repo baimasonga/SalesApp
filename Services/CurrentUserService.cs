@@ -9,7 +9,7 @@ namespace SalesApp.Services;
 public class CurrentUserService
 {
     public string UserName { get; private set; } = "Demo User";
-    public string Role { get; private set; } = "Manager"; // Cashier, Manager, Admin
+    public string Role { get; private set; } = "Admin"; // Cashier, Manager, Admin — demo starts as Admin so all admin tools are visible
 
     /// <summary>Raised when SignIn updates user/role; lets the auth state provider re-evaluate.</summary>
     public event Action? Changed;

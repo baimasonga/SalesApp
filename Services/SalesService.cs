@@ -71,6 +71,7 @@ public class SalesService
         {
         var gstRate = await _settings.GetAsync(SettingKeys.GstRate, 0.15m);
         var loyaltyPer = await _settings.GetAsync(SettingKeys.LoyaltyPerCurrency, 100m);
+        var discountCap = await _settings.GetAsync(SettingKeys.DefaultDiscountCap, 0.20m);
 
         // Recompute totals server-side
         foreach (var i in sale.Items)
@@ -80,6 +81,18 @@ public class SalesService
         sale.Subtotal = sale.Items.Sum(i => i.LineTotal);
         sale.Tax = Math.Round(sale.Subtotal * gstRate, 2);
         sale.Total = sale.Subtotal + sale.Tax - sale.Discount;
+
+        // Enforce discount cap from settings: total discount can't exceed cap × subtotal
+        // (managers can lift the cap in /settings if they need to grant a larger discount)
+        if (discountCap > 0 && sale.Subtotal > 0)
+        {
+            var totalDiscount = sale.Discount + sale.Items.Sum(i => i.LineDiscount);
+            var maxAllowed = sale.Subtotal * discountCap;
+            if (totalDiscount > maxAllowed)
+                throw new InvalidOperationException(
+                    $"Total discount of {totalDiscount:N2} exceeds the configured cap of " +
+                    $"{discountCap:P0} (max {maxAllowed:N2}). Adjust the discount or raise the cap in Settings.");
+        }
         if (string.IsNullOrWhiteSpace(sale.InvoiceNumber))
             sale.InvoiceNumber = $"INV-{DateTime.UtcNow:yyyyMMddHHmmss}";
         if (string.IsNullOrWhiteSpace(sale.CashierName))
@@ -155,8 +168,17 @@ public class SalesService
         try
         {
             var loyaltyPer = await _settings.GetAsync(SettingKeys.LoyaltyPerCurrency, 100m);
+            var refundWindow = await _settings.GetAsync(SettingKeys.RefundWindowDays, 30);
             var sale = await db.Sales.Include(s => s.Items).FirstOrDefaultAsync(s => s.Id == id);
             if (sale == null) { if (tx != null) await tx.RollbackAsync(); return; }
+
+            // Enforce refund window from settings
+            var daysSince = (DateTime.UtcNow - sale.SaleDate).TotalDays;
+            if (refundWindow > 0 && daysSince > refundWindow)
+                throw new InvalidOperationException(
+                    $"Sale was {Math.Floor(daysSince):F0} days ago. Refund window is {refundWindow} days. " +
+                    $"Adjust the window in Settings if needed.");
+
             sale.Status = SaleStatus.Refunded;
             foreach (var item in sale.Items)
             {

@@ -172,6 +172,23 @@ app.UseAntiforgery();
 app.UseAuthentication();
 app.UseAuthorization();
 
+// ----- Version & build info (for deploys, monitoring, support tickets)
+var asm = typeof(Program).Assembly;
+var asmVersion = asm.GetName().Version?.ToString() ?? "unknown";
+var buildDate = System.IO.File.GetLastWriteTimeUtc(asm.Location).ToString("u");
+var commitSha = Environment.GetEnvironmentVariable("COMMIT_SHA") ?? "dev";
+app.MapGet("/api/version", () => Results.Json(new
+{
+    name = "Salone Sales",
+    version = asmVersion,
+    build = buildDate,
+    commit = commitSha,
+    environment = app.Environment.EnvironmentName,
+    framework = Environment.Version.ToString(),
+    server = Environment.MachineName,
+    timeUtc = DateTime.UtcNow,
+}));
+
 // ----- Health & readiness probes (standardized ASP.NET Core HealthCheck endpoints)
 // /health/live  → simple liveness, always returns 200 if the process is running
 // /health/ready → readiness, returns 200 only if DB is reachable

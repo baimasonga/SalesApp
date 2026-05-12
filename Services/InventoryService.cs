@@ -7,7 +7,17 @@ namespace SalesApp.Services;
 public class InventoryService
 {
     private readonly IDbContextFactory<SalesDbContext> _factory;
-    public InventoryService(IDbContextFactory<SalesDbContext> factory) => _factory = factory;
+    private readonly SettingsService? _settings;
+
+    public InventoryService(IDbContextFactory<SalesDbContext> factory, SettingsService? settings = null)
+    { _factory = factory; _settings = settings; }
+
+    /// <summary>Reads the default reorder level from settings; falls back to 8.</summary>
+    private async Task<int> DefaultReorderLevelAsync()
+    {
+        if (_settings is null) return 8;
+        return await _settings.GetAsync(SettingKeys.LowStockThreshold, 8);
+    }
 
     public async Task<List<Store>> GetStoresAsync()
     {
@@ -122,7 +132,7 @@ public class InventoryService
         var inv = await db.InventoryItems.FirstOrDefaultAsync(i => i.StoreId == storeId && i.ProductId == productId);
         if (inv == null)
         {
-            inv = new InventoryItem { StoreId = storeId, ProductId = productId, QuantityOnHand = Math.Max(0, absoluteQty) };
+            inv = new InventoryItem { StoreId = storeId, ProductId = productId, QuantityOnHand = Math.Max(0, absoluteQty), ReorderLevel = await DefaultReorderLevelAsync() };
             db.InventoryItems.Add(inv);
         }
         else

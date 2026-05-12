@@ -2,7 +2,7 @@
 // Note: Blazor Server uses SignalR, so true offline mode requires Blazor WASM.
 // This SW caches static assets so the app shell loads instantly and works on flaky connections.
 
-const CACHE = 'salone-sales-v7';  // bump to invalidate cached CSS/JS after redesign
+const CACHE = 'salone-sales-v8';  // bump to invalidate cached CSS/JS after redesign
 const SHELL = [
     '/',
     '/app.css',

@@ -2,6 +2,7 @@
 @layout EmptyLayout
 @rendermode InteractiveServer
 @inject SalesService SalesSvc
+@inject SettingsService Settings
 @inject IJSRuntime JS
 
 @if (sale == null)
@@ -20,11 +21,20 @@ else
 
     <div class="receipt-80">
         <div class="r-center">
-            <strong>SALONE SALES</strong><br />
+            <strong>@(businessName?.ToUpperInvariant() ?? "SALONE SALES")</strong><br />
             @sale.Store?.Name<br />
             <small>@sale.Store?.Location, @sale.Store?.District</small><br />
             <small>Tel: @sale.Store?.Phone</small>
+            @if (!string.IsNullOrEmpty(tin))
+            {
+                <br /><small>TIN: @tin</small>
+            }
         </div>
+        @if (!string.IsNullOrEmpty(headerText))
+        {
+            <div class="r-divider"></div>
+            <div class="r-center"><small>@headerText</small></div>
+        }
         <div class="r-divider"></div>
 
         <div class="r-row"><span>Receipt</span><span>@sale.InvoiceNumber</span></div>
@@ -72,7 +82,7 @@ else
 
         <div class="r-divider"></div>
         <div class="r-center">
-            <small>Tenki — thank you!</small><br />
+            <small>@(footerText ?? "Tenki — thank you!")</small><br />
             <small>Powered by Salone Sales</small>
         </div>
     </div>
@@ -115,8 +125,16 @@ else
 @code {
     [Parameter] public int Id { get; set; }
     Sale? sale;
+    string? businessName, tin, headerText, footerText;
 
-    protected override async Task OnParametersSetAsync() => sale = await SalesSvc.GetAsync(Id);
+    protected override async Task OnParametersSetAsync()
+    {
+        sale = await SalesSvc.GetAsync(Id);
+        businessName = await Settings.GetAsync(SettingKeys.BusinessName);
+        tin          = await Settings.GetAsync(SettingKeys.BusinessTin);
+        headerText   = await Settings.GetAsync(SettingKeys.ReceiptHeader);
+        footerText   = await Settings.GetAsync(SettingKeys.ReceiptFooter);
+    }
 
     async Task Print()
     {

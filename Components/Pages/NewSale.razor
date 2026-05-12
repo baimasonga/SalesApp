@@ -5,6 +5,7 @@
 @inject CrmService Crm
 @inject CurrentUserService User
 @inject LayoutState Layout
+@inject SettingsService Settings
 @inject ToastService Toast
 @inject NavigationManager Nav
 
@@ -348,6 +349,8 @@ else
         customers = await Crm.GetCustomersAsync();
         if (stores.Any()) sale.StoreId = stores.First().Id;
         sale.CashierName = User.UserName;
+        // Default currency from settings (overrides hardcoded "NLe")
+        sale.Currency = await Settings.GetAsync(SettingKeys.DefaultCurrency, "NLe");
     }
 
     void AddProduct(Product p)

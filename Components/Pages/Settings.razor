@@ -1,6 +1,6 @@
 @page "/settings"
 @rendermode InteractiveServer
-@attribute [Microsoft.AspNetCore.Authorization.Authorize(Policy = "AdminOnly")]
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Policy = "ManagerOrAdmin")]
 @inject SettingsService Cfg
 @inject LayoutState Layout
 @inject ToastService Toast
