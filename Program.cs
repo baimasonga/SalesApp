@@ -107,6 +107,8 @@ else
     // [Authorize] checks and role-based policies work uniformly. The "Sign in"
     // page sets the demo role; policies enforce based on that role.
     builder.Services.AddScoped<Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider, DemoAuthStateProvider>();
+    builder.Services.AddAuthentication("Demo")
+        .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, DemoAuthHandler>("Demo", null);
     builder.Services.AddAuthorizationBuilder()
         .AddPolicy("ManagerOrAdmin", p => p.RequireRole("Manager", "Admin"))
         .AddPolicy("AdminOnly", p => p.RequireRole("Admin"));
@@ -164,11 +166,11 @@ app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseAntiforgery();
 
-if (authEnabled)
-{
-    app.UseAuthentication();
-    app.UseAuthorization();
-}
+// Authentication + authorization run in both modes.
+// In Identity mode they enforce real users; in demo mode they use the
+// DemoAuthStateProvider that synthesizes a ClaimsPrincipal from CurrentUserService.
+app.UseAuthentication();
+app.UseAuthorization();
 
 // ----- Health & readiness probes (standardized ASP.NET Core HealthCheck endpoints)
 // /health/live  → simple liveness, always returns 200 if the process is running
